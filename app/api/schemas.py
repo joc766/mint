@@ -28,6 +28,20 @@ class PlaidItemBase(BaseModel):
     available_products: Optional[List[str]] = []
     billed_products: Optional[List[str]] = []
 
+# Plaid Link Token schemas
+class LinkTokenCreateRequest(BaseModel):
+    user_id: str
+
+class LinkTokenCreateResponse(BaseModel):
+    link_token: str
+
+class ExchangeTokenRequest(BaseModel):
+    public_token: str
+
+class ExchangeTokenResponse(BaseModel):
+    access_token: str
+    item_id: str
+
 class PlaidItemCreate(PlaidItemBase):
     access_token: str
 

@@ -1,6 +1,7 @@
 import os
 import plaid
 from plaid.api import plaid_api
+
 from plaid.model.transactions_get_request import TransactionsGetRequest
 from plaid.model.transactions_get_request_options import TransactionsGetRequestOptions
 from plaid.model.accounts_get_request import AccountsGetRequest
@@ -78,7 +79,7 @@ class PlaidService:
         except Exception as e:
             raise Exception(f"Failed to get transaction details: {str(e)}")
     
-    async def create_link_token(self, user_id: str) -> str:
+    def create_link_token(self, user_id: str) -> str:
         """Create a link token for Plaid Link"""
         try:
             from plaid.model.link_token_create_request import LinkTokenCreateRequest
@@ -101,14 +102,17 @@ class PlaidService:
         except Exception as e:
             raise Exception(f"Failed to create link token: {str(e)}")
     
-    async def exchange_public_token(self, public_token: str) -> str:
+    def exchange_public_token(self, public_token: str) -> dict:
         """Exchange a public token for an access token"""
         try:
             from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
             
             request = ItemPublicTokenExchangeRequest(public_token=public_token)
             response = self.client.item_public_token_exchange(request)
-            return response["access_token"]
+            return {
+                "access_token": response["access_token"],
+                "item_id": response["item_id"]
+            }
         except Exception as e:
             raise Exception(f"Failed to exchange public token: {str(e)}")
     

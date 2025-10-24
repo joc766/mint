@@ -17,7 +17,8 @@ from api.models import User, PlaidItem, Account, Transaction, Category, Transact
 from api.schemas import (
     UserCreate, UserResponse, PlaidItemCreate, AccountResponse, 
     TransactionResponse, TransactionCreate, CategoryCreate, CategoryResponse, 
-    TransactionUpdate, TransactionSplitCreate, RecurringTransactionResponse
+    TransactionUpdate, TransactionSplitCreate, RecurringTransactionResponse,
+    LinkTokenCreateRequest, LinkTokenCreateResponse, ExchangeTokenRequest, ExchangeTokenResponse
 )
 from api.auth import get_current_user, create_access_token, verify_password, get_password_hash
 from api.plaid_service import PlaidService
@@ -70,6 +71,22 @@ async def login(email: str, password: str, db: Session = Depends(get_db)):
         )
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/plaid/link/token/create", response_model=LinkTokenCreateResponse)
+def create_link_token(request: LinkTokenCreateRequest):
+    """Create a link token for Plaid Link"""
+    link_token = plaid_service.create_link_token(request.user_id)
+    return LinkTokenCreateResponse(link_token=link_token)
+
+@app.post("/plaid/link/token/exchange", response_model=ExchangeTokenResponse)
+def exchange_public_token(request: ExchangeTokenRequest):
+    """Exchange a public token for an access token"""
+    result = plaid_service.exchange_public_token(request.public_token)
+    
+    return ExchangeTokenResponse(
+        access_token=result["access_token"],
+        item_id=result["item_id"]
+    )
 
 # Plaid integration endpoints
 @app.post("/plaid/items/")
