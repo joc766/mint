@@ -16,7 +16,7 @@ from api.database import get_db, engine
 from api.models import User, PlaidItem, Account, Transaction, Category, TransactionSplit, RecurringTransaction
 from api.schemas import (
     UserCreate, UserResponse, PlaidItemCreate, AccountResponse, 
-    TransactionResponse, CategoryCreate, CategoryResponse, 
+    TransactionResponse, TransactionCreate, CategoryCreate, CategoryResponse, 
     TransactionUpdate, TransactionSplitCreate, RecurringTransactionResponse
 )
 from api.auth import get_current_user, create_access_token, verify_password, get_password_hash
@@ -219,6 +219,58 @@ async def get_transactions(
     
     transactions = query.order_by(Transaction.date.desc()).all()
     return transactions
+
+@app.post("/transactions/", response_model=TransactionResponse)
+async def create_transaction(
+    transaction: TransactionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new transaction manually (independent of Plaid data)"""
+    # Verify that the account belongs to the current user
+    account = db.query(Account).join(PlaidItem).filter(
+        Account.id == transaction.account_id,
+        PlaidItem.user_id == current_user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found or access denied")
+    
+    # Generate a unique transaction_id for manual transactions
+    import uuid
+    transaction_id = f"manual_{uuid.uuid4().hex[:16]}"
+    
+    # Create the transaction
+    db_transaction = Transaction(
+        account_id=transaction.account_id,
+        transaction_id=transaction_id,
+        amount=transaction.amount,
+        iso_currency_code=transaction.iso_currency_code,
+        date=transaction.date,
+        datetime=transaction.datetime,
+        name=transaction.name,
+        merchant_name=transaction.merchant_name,
+        payment_channel=transaction.payment_channel,
+        pending=transaction.pending,
+        authorized_date=transaction.authorized_date,
+        authorized_datetime=transaction.authorized_datetime,
+        location=transaction.location,
+        payment_meta=transaction.payment_meta,
+        account_owner=transaction.account_owner,
+        transaction_code=transaction.transaction_code,
+        transaction_type=transaction.transaction_type,
+        custom_category_id=transaction.custom_category_id,
+        custom_subcategory_id=transaction.custom_subcategory_id,
+        notes=transaction.notes,
+        tags=transaction.tags,
+        is_recurring=transaction.is_recurring,
+        is_transfer=transaction.is_transfer
+    )
+    
+    db.add(db_transaction)
+    db.commit()
+    db.refresh(db_transaction)
+    return db_transaction
 
 @app.put("/transactions/{transaction_id}", response_model=TransactionResponse)
 async def update_transaction(

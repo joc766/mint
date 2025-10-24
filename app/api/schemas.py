@@ -87,6 +87,24 @@ class TransactionBase(BaseModel):
     payment_channel: Optional[str] = None
     pending: bool = False
 
+class TransactionCreate(TransactionBase):
+    account_id: int
+    iso_currency_code: Optional[str] = None
+    datetime: Optional[datetime] = None
+    authorized_date: Optional[date] = None
+    authorized_datetime: Optional[datetime] = None
+    location: Optional[dict] = None
+    payment_meta: Optional[dict] = None
+    account_owner: Optional[str] = None
+    transaction_code: Optional[str] = None
+    transaction_type: Optional[str] = None
+    custom_category_id: Optional[int] = None
+    custom_subcategory_id: Optional[int] = None
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = []
+    is_recurring: bool = False
+    is_transfer: bool = False
+
 class TransactionResponse(TransactionBase):
     id: int
     transaction_id: str
