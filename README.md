@@ -49,9 +49,22 @@ The API uses a PostgreSQL database with the following main entities:
    - Fill in your database URL, JWT secret, and Plaid credentials
 
 4. **Run the API**:
-   ```bash
-   python main.py
-   ```
+   - Build the docker image based on `Dockerfile`: `docker build -t plaid-api .`
+   
+   - Run the container with: 
+   ```sh
+   docker run -d \
+  --name plaid_api_app \
+  -p 8000:8000 \
+  -e DATABASE_URL=postgresql://plaid_user:plaid_password@host.docker.internal:5432/plaid_db \
+  -e SECRET_KEY=your-super-secret-jwt-key-change-in-production \
+  -e PLAID_CLIENT_ID=${PLAID_CLIENT_ID} \
+  -e PLAID_SECRET=${PLAID_SECRET} \
+  -e PLAID_ENV=${PLAID_ENV:-sandbox} \
+  -v $(pwd)/logs:/app/logs \
+  --restart unless-stopped \
+  plaid-api
+  ```
 
 ## API Endpoints
 
