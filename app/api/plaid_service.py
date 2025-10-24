@@ -17,9 +17,9 @@ class PlaidService:
         
         # Map environment to Plaid host
         self.host_map = {
-            "sandbox": plaid.Environment.sandbox,
-            "development": plaid.Environment.development,
-            "production": plaid.Environment.production
+            "sandbox": plaid.Environment.Sandbox,
+            "development": plaid.Environment.Development,
+            "production": plaid.Environment.Production
         }
         
         self._setup_client()

@@ -12,18 +12,18 @@ from plaid.model.transactions_get_request_options import TransactionsGetRequestO
 from plaid.configuration import Configuration
 from plaid.api_client import ApiClient
 
-from .api.database import get_db, engine
-from .api.models import User, PlaidItem, Account, Transaction, Category, TransactionSplit, RecurringTransaction
-from .api.schemas import (
+from api.database import get_db, engine
+from api.models import User, PlaidItem, Account, Transaction, Category, TransactionSplit, RecurringTransaction
+from api.schemas import (
     UserCreate, UserResponse, PlaidItemCreate, AccountResponse, 
     TransactionResponse, CategoryCreate, CategoryResponse, 
     TransactionUpdate, TransactionSplitCreate, RecurringTransactionResponse
 )
-from .api.auth import get_current_user, create_access_token, verify_password, get_password_hash
-from .api.plaid_service import PlaidService
+from api.auth import get_current_user, create_access_token, verify_password, get_password_hash
+from api.plaid_service import PlaidService
 
 # Create database tables
-from .api.models import Base
+from api.models import Base
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Plaid Transaction Categorization API", version="1.0.0")
