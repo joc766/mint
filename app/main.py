@@ -3,6 +3,7 @@ import plaid
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -30,16 +31,25 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Plaid Transaction Categorization API", version="1.0.0")
 security = HTTPBearer()
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all HTTP methods including OPTIONS
+    allow_headers=["*"],
+)
+
 # Initialize Plaid service
 plaid_service = PlaidService()
 
 @app.get("/")
-async def root():
+def root():
     return {"message": "Plaid Transaction Categorization API"}
 
 # User management endpoints
 @app.post("/users/", response_model=UserResponse)
-async def create_user(user: UserCreate, db: Session = Depends(get_db)):
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
     """Create a new user"""
     # Check if user already exists
     db_user = db.query(User).filter(User.email == user.email).first()
@@ -60,7 +70,7 @@ async def create_user(user: UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 @app.post("/auth/login")
-async def login(email: str, password: str, db: Session = Depends(get_db)):
+def login(email: str, password: str, db: Session = Depends(get_db)):
     """Authenticate user and return access token"""
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.password_hash):
@@ -90,7 +100,7 @@ def exchange_public_token(request: ExchangeTokenRequest):
 
 # Plaid integration endpoints
 @app.post("/plaid/items/")
-async def create_plaid_item(
+def create_plaid_item(
     item_data: PlaidItemCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -112,7 +122,7 @@ async def create_plaid_item(
     return plaid_item
 
 @app.get("/plaid/items/", response_model=List[PlaidItemCreate])
-async def get_plaid_items(
+def get_plaid_items(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -120,99 +130,99 @@ async def get_plaid_items(
     items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
     return items
 
-@app.post("/plaid/sync/")
-async def sync_plaid_data(
-    item_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Sync accounts and transactions from Plaid"""
-    plaid_item = db.query(PlaidItem).filter(
-        PlaidItem.item_id == item_id,
-        PlaidItem.user_id == current_user.id
-    ).first()
+# @app.post("/plaid/sync/")
+# def sync_plaid_data(
+#     item_id: str,
+#     current_user: User = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """Sync accounts and transactions from Plaid"""
+#     plaid_item = db.query(PlaidItem).filter(
+#         PlaidItem.item_id == item_id,
+#         PlaidItem.user_id == current_user.id
+#     ).first()
     
-    if not plaid_item:
-        raise HTTPException(status_code=404, detail="Plaid item not found")
+#     if not plaid_item:
+#         raise HTTPException(status_code=404, detail="Plaid item not found")
     
-    try:
-        # Sync accounts
-        accounts_data = await plaid_service.get_accounts(plaid_item.access_token)
-        for account_data in accounts_data:
-            account = db.query(Account).filter(
-                Account.account_id == account_data['account_id']
-            ).first()
+#     try:
+#         # Sync accounts
+#         accounts_data = await plaid_service.get_accounts(plaid_item.access_token)
+#         for account_data in accounts_data:
+#             account = db.query(Account).filter(
+#                 Account.account_id == account_data['account_id']
+#             ).first()
             
-            if not account:
-                account = Account(
-                    plaid_item_id=plaid_item.id,
-                    account_id=account_data['account_id'],
-                    name=account_data['name'],
-                    official_name=account_data.get('official_name'),
-                    type=account_data['type'],
-                    subtype=account_data.get('subtype'),
-                    mask=account_data.get('mask'),
-                    balance_available=account_data.get('balances', {}).get('available'),
-                    balance_current=account_data.get('balances', {}).get('current'),
-                    balance_limit=account_data.get('balances', {}).get('limit'),
-                    balance_iso_currency_code=account_data.get('balances', {}).get('iso_currency_code'),
-                    verification_status=account_data.get('verification_status')
-                )
-                db.add(account)
-            else:
-                # Update existing account
-                account.balance_available = account_data.get('balances', {}).get('available')
-                account.balance_current = account_data.get('balances', {}).get('current')
-                account.balance_limit = account_data.get('balances', {}).get('limit')
+#             if not account:
+#                 account = Account(
+#                     plaid_item_id=plaid_item.id,
+#                     account_id=account_data['account_id'],
+#                     name=account_data['name'],
+#                     official_name=account_data.get('official_name'),
+#                     type=account_data['type'],
+#                     subtype=account_data.get('subtype'),
+#                     mask=account_data.get('mask'),
+#                     balance_available=account_data.get('balances', {}).get('available'),
+#                     balance_current=account_data.get('balances', {}).get('current'),
+#                     balance_limit=account_data.get('balances', {}).get('limit'),
+#                     balance_iso_currency_code=account_data.get('balances', {}).get('iso_currency_code'),
+#                     verification_status=account_data.get('verification_status')
+#                 )
+#                 db.add(account)
+#             else:
+#                 # Update existing account
+#                 account.balance_available = account_data.get('balances', {}).get('available')
+#                 account.balance_current = account_data.get('balances', {}).get('current')
+#                 account.balance_limit = account_data.get('balances', {}).get('limit')
         
-        # Sync transactions
-        start_date = datetime.now().date() - timedelta(days=30)
-        end_date = datetime.now().date()
+#         # Sync transactions
+#         start_date = datetime.now().date() - timedelta(days=30)
+#         end_date = datetime.now().date()
         
-        transactions_data = await plaid_service.get_transactions(
-            plaid_item.access_token, start_date, end_date
-        )
+#         transactions_data = await plaid_service.get_transactions(
+#             plaid_item.access_token, start_date, end_date
+#         )
         
-        for transaction_data in transactions_data:
-            # Find the account for this transaction
-            account = db.query(Account).filter(
-                Account.account_id == transaction_data['account_id']
-            ).first()
+#         for transaction_data in transactions_data:
+#             # Find the account for this transaction
+#             account = db.query(Account).filter(
+#                 Account.account_id == transaction_data['account_id']
+#             ).first()
             
-            if not account:
-                continue
+#             if not account:
+#                 continue
                 
-            transaction = db.query(Transaction).filter(
-                Transaction.transaction_id == transaction_data['transaction_id']
-            ).first()
+#             transaction = db.query(Transaction).filter(
+#                 Transaction.transaction_id == transaction_data['transaction_id']
+#             ).first()
             
-            if not transaction:
-                transaction = Transaction(
-                    account_id=account.id,
-                    transaction_id=transaction_data['transaction_id'],
-                    amount=transaction_data['amount'],
-                    iso_currency_code=transaction_data.get('iso_currency_code'),
-                    date=transaction_data['date'],
-                    datetime=transaction_data.get('datetime'),
-                    name=transaction_data['name'],
-                    merchant_name=transaction_data.get('merchant_name'),
-                    payment_channel=transaction_data.get('payment_channel'),
-                    pending=transaction_data.get('pending', False),
-                    plaid_category_id=transaction_data.get('category_id'),
-                    plaid_category=transaction_data.get('category', []),
-                    plaid_subcategory=transaction_data.get('subcategory', [])
-                )
-                db.add(transaction)
+#             if not transaction:
+#                 transaction = Transaction(
+#                     account_id=account.id,
+#                     transaction_id=transaction_data['transaction_id'],
+#                     amount=transaction_data['amount'],
+#                     iso_currency_code=transaction_data.get('iso_currency_code'),
+#                     date=transaction_data['date'],
+#                     datetime=transaction_data.get('datetime'),
+#                     name=transaction_data['name'],
+#                     merchant_name=transaction_data.get('merchant_name'),
+#                     payment_channel=transaction_data.get('payment_channel'),
+#                     pending=transaction_data.get('pending', False),
+#                     plaid_category_id=transaction_data.get('category_id'),
+#                     plaid_category=transaction_data.get('category', []),
+#                     plaid_subcategory=transaction_data.get('subcategory', [])
+#                 )
+#                 db.add(transaction)
         
-        db.commit()
-        return {"message": "Data synced successfully", "accounts": len(accounts_data), "transactions": len(transactions_data)}
+#         db.commit()
+#         return {"message": "Data synced successfully", "accounts": len(accounts_data), "transactions": len(transactions_data)}
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to sync data: {str(e)}")
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to sync data: {str(e)}")
 
 # Transaction endpoints
 @app.get("/transactions/", response_model=List[TransactionResponse])
-async def get_transactions(
+def get_transactions(
     account_id: Optional[int] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -238,7 +248,7 @@ async def get_transactions(
     return transactions
 
 @app.post("/transactions/", response_model=TransactionResponse)
-async def create_transaction(
+def create_transaction(
     transaction: TransactionCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -290,7 +300,7 @@ async def create_transaction(
     return db_transaction
 
 @app.put("/transactions/{transaction_id}", response_model=TransactionResponse)
-async def update_transaction(
+def update_transaction(
     transaction_id: int,
     transaction_update: TransactionUpdate,
     current_user: User = Depends(get_current_user),
@@ -324,7 +334,7 @@ async def update_transaction(
 
 # Category management endpoints
 @app.get("/categories/", response_model=List[CategoryResponse])
-async def get_categories(
+def get_categories(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -335,7 +345,7 @@ async def get_categories(
     return categories
 
 @app.post("/categories/", response_model=CategoryResponse)
-async def create_category(
+def create_category(
     category: CategoryCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -355,7 +365,7 @@ async def create_category(
     return db_category
 
 @app.put("/categories/{category_id}", response_model=CategoryResponse)
-async def update_category(
+def update_category(
     category_id: int,
     category_update: CategoryCreate,
     current_user: User = Depends(get_current_user),
@@ -381,7 +391,7 @@ async def update_category(
     return category
 
 @app.delete("/categories/{category_id}")
-async def delete_category(
+def delete_category(
     category_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -411,38 +421,9 @@ async def delete_category(
     db.commit()
     return {"message": "Category deleted successfully"}
 
-# Transaction splitting endpoints
-@app.post("/transactions/{transaction_id}/splits/")
-async def create_transaction_split(
-    transaction_id: int,
-    split: TransactionSplitCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create a split for a transaction"""
-    transaction = db.query(Transaction).join(Account).join(PlaidItem).filter(
-        Transaction.id == transaction_id,
-        PlaidItem.user_id == current_user.id
-    ).first()
-    
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    
-    db_split = TransactionSplit(
-        transaction_id=transaction_id,
-        amount=split.amount,
-        category_id=split.category_id,
-        subcategory_id=split.subcategory_id,
-        description=split.description
-    )
-    db.add(db_split)
-    db.commit()
-    db.refresh(db_split)
-    return db_split
-
 # Analytics endpoints
 @app.get("/analytics/spending-by-category")
-async def get_spending_by_category(
+def get_spending_by_category(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     current_user: User = Depends(get_current_user),
