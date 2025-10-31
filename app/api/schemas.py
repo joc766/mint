@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
-from datetime import datetime, date
+from datetime import datetime as dt_type, date
 from decimal import Decimal
 
 # User schemas
@@ -14,7 +16,7 @@ class UserCreate(UserBase):
 
 class UserResponse(UserBase):
     id: int
-    created_at: datetime
+    created_at: dt_type
     
     class Config:
         from_attributes = True
@@ -48,15 +50,13 @@ class PlaidItemCreate(PlaidItemBase):
 class PlaidItemResponse(PlaidItemBase):
     id: int
     user_id: int
-    created_at: datetime
+    created_at: dt_type
     
     class Config:
         from_attributes = True
 
 # Account schemas
-class AccountResponse(BaseModel):
-    id: int
-    account_id: str
+class AccountBase(BaseModel):
     name: str
     official_name: Optional[str] = None
     type: str
@@ -67,6 +67,15 @@ class AccountResponse(BaseModel):
     balance_limit: Optional[Decimal] = None
     balance_iso_currency_code: Optional[str] = None
     verification_status: Optional[str] = None
+
+class AccountCreate(AccountBase):
+    plaid_item_id: Optional[int] = None
+
+class AccountResponse(AccountBase):
+    id: int
+    plaid_item_id: Optional[int] = None
+    created_at: dt_type
+    updated_at: Optional[dt_type] = None
     
     class Config:
         from_attributes = True
@@ -77,7 +86,6 @@ class CategoryBase(BaseModel):
     description: Optional[str] = None
     color: Optional[str] = None
     icon: Optional[str] = None
-    parent_id: Optional[int] = None
 
 class CategoryCreate(CategoryBase):
     pass
@@ -86,8 +94,32 @@ class CategoryResponse(CategoryBase):
     id: int
     is_system: bool
     user_id: Optional[int] = None
-    created_at: datetime
-    children: Optional[List['CategoryResponse']] = []
+    created_at: dt_type
+    updated_at: Optional[dt_type] = None
+    # Note: subcategories excluded to avoid circular reference with SubcategoryResponse.category
+    # Fetch subcategories separately if needed
+    
+    class Config:
+        from_attributes = True
+
+# Subcategory schemas
+class SubcategoryBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = None
+    icon: Optional[str] = None
+
+class SubcategoryCreate(SubcategoryBase):
+    pass
+
+class SubcategoryResponse(SubcategoryBase):
+    id: int
+    category_id: int
+    is_system: bool
+    user_id: Optional[int] = None
+    created_at: dt_type
+    updated_at: Optional[dt_type] = None
+    category: Optional['CategoryResponse'] = None
     
     class Config:
         from_attributes = True
@@ -98,102 +130,55 @@ class TransactionBase(BaseModel):
     date: date
     name: str
     merchant_name: Optional[str] = None
-    payment_channel: Optional[str] = None
     pending: bool = False
 
 class TransactionCreate(TransactionBase):
     account_id: int
+    plaid_transaction_id: str = None
     iso_currency_code: Optional[str] = None
-    datetime: Optional[datetime] = None
+    datetime: Optional[dt_type] = None
+    merchant_entity_id: Optional[str] = None
+    logo_url: Optional[str] = None
+    website: Optional[str] = None
     authorized_date: Optional[date] = None
-    authorized_datetime: Optional[datetime] = None
-    location: Optional[dict] = None
-    payment_meta: Optional[dict] = None
-    account_owner: Optional[str] = None
-    transaction_code: Optional[str] = None
+    authorized_datetime: Optional[dt_type] = None
     transaction_type: Optional[str] = None
-    custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = []
-    is_recurring: bool = False
-    is_transfer: bool = False
 
 class TransactionResponse(TransactionBase):
     id: int
-    transaction_id: str
+    plaid_transaction_id: Optional[str] = None
+    account_id: int
     iso_currency_code: Optional[str] = None
-    datetime: Optional[datetime] = None
+    datetime: Optional[dt_type] = None
     authorized_date: Optional[date] = None
-    authorized_datetime: Optional[datetime] = None
-    location: Optional[dict] = None
-    payment_meta: Optional[dict] = None
-    account_owner: Optional[str] = None
-    transaction_code: Optional[str] = None
+    authorized_datetime: Optional[dt_type] = None
     transaction_type: Optional[str] = None
+    merchant_entity_id: Optional[str] = None
+    logo_url: Optional[str] = None
+    website: Optional[str] = None
     
     # Custom categorization
-    custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = []
-    is_recurring: bool = False
-    is_transfer: bool = False
-    
-    # Plaid categories
-    plaid_category_id: Optional[str] = None
-    plaid_category: Optional[List[str]] = []
-    plaid_subcategory: Optional[List[str]] = []
     
     # Relationships
     account: Optional[AccountResponse] = None
-    custom_category: Optional[CategoryResponse] = None
-    custom_subcategory: Optional[CategoryResponse] = None
+    custom_subcategory: Optional['SubcategoryResponse'] = None
+    # Category is accessible through custom_subcategory.category
     
     class Config:
         from_attributes = True
 
 class TransactionUpdate(BaseModel):
-    custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
-    is_recurring: Optional[bool] = None
-    is_transfer: Optional[bool] = None
 
-# Transaction Split schemas
-class TransactionSplitBase(BaseModel):
-    amount: Decimal
-    category_id: Optional[int] = None
-    subcategory_id: Optional[int] = None
-    description: Optional[str] = None
-
-class TransactionSplitCreate(TransactionSplitBase):
-    pass
-
-class TransactionSplitResponse(TransactionSplitBase):
-    id: int
-    transaction_id: int
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-# Recurring Transaction schemas
-class RecurringTransactionResponse(BaseModel):
-    id: int
-    name: str
-    merchant_name: Optional[str] = None
-    average_amount: Optional[Decimal] = None
-    frequency: Optional[str] = None
-    last_occurrence: Optional[datetime] = None
-    next_expected_date: Optional[datetime] = None
-    confidence_score: Optional[Decimal] = None
-    is_active: bool = True
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
+# Note: TransactionSplit and RecurringTransaction models removed from schema
 
 # Analytics schemas
 class SpendingByCategoryResponse(BaseModel):
@@ -205,3 +190,6 @@ class MonthlySpendingResponse(BaseModel):
     month: str
     total_amount: Decimal
     categories: List[SpendingByCategoryResponse]
+
+# Forward references are resolved automatically by Pydantic when using string annotations
+# No explicit model_rebuild() needed - Pydantic handles this automatically

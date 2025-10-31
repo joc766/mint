@@ -14,12 +14,12 @@ from plaid.configuration import Configuration
 from plaid.api_client import ApiClient
 
 from api.database import get_db, engine
-from api.models import User, PlaidItem, Account, Transaction, Category, TransactionSplit, RecurringTransaction
+from api.models import User, Account, Transaction, Category, Subcategory
 from api.schemas import (
-    UserCreate, UserResponse, PlaidItemCreate, AccountResponse, 
-    TransactionResponse, TransactionCreate, CategoryCreate, CategoryResponse, 
-    TransactionUpdate, TransactionSplitCreate, RecurringTransactionResponse,
-    LinkTokenCreateRequest, LinkTokenCreateResponse, ExchangeTokenRequest, ExchangeTokenResponse
+    UserCreate, UserResponse, AccountCreate, AccountResponse, 
+    TransactionResponse, TransactionCreate, CategoryCreate, CategoryResponse,
+    SubcategoryCreate, SubcategoryResponse,
+    TransactionUpdate, LinkTokenCreateRequest, LinkTokenCreateResponse, ExchangeTokenRequest, ExchangeTokenResponse
 )
 from api.auth import get_current_user, create_access_token, verify_password, get_password_hash
 from api.plaid_service import PlaidService
@@ -82,6 +82,41 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
+# Account management endpoints
+@app.post("/accounts/", response_model=AccountResponse)
+def create_account(
+    account: AccountCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new account"""
+    db_account = Account(
+        plaid_item_id=account.plaid_item_id,
+        name=account.name,
+        official_name=account.official_name,
+        type=account.type,
+        subtype=account.subtype,
+        mask=account.mask,
+        balance_available=account.balance_available,
+        balance_current=account.balance_current,
+        balance_limit=account.balance_limit,
+        balance_iso_currency_code=account.balance_iso_currency_code,
+        verification_status=account.verification_status
+    )
+    db.add(db_account)
+    db.commit()
+    db.refresh(db_account)
+    return db_account
+
+@app.get("/accounts/", response_model=List[AccountResponse])
+def get_accounts(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all accounts"""
+    accounts = db.query(Account).all()
+    return accounts
+
 @app.post("/plaid/link/token/create", response_model=LinkTokenCreateResponse)
 def create_link_token(request: LinkTokenCreateRequest):
     """Create a link token for Plaid Link"""
@@ -99,36 +134,7 @@ def exchange_public_token(request: ExchangeTokenRequest):
     )
 
 # Plaid integration endpoints
-@app.post("/plaid/items/")
-def create_plaid_item(
-    item_data: PlaidItemCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create a new Plaid item (financial institution connection)"""
-    plaid_item = PlaidItem(
-        user_id=current_user.id,
-        item_id=item_data.item_id,
-        access_token=item_data.access_token,  # In production, encrypt this
-        institution_id=item_data.institution_id,
-        institution_name=item_data.institution_name,
-        webhook_url=item_data.webhook_url,
-        available_products=item_data.available_products,
-        billed_products=item_data.billed_products
-    )
-    db.add(plaid_item)
-    db.commit()
-    db.refresh(plaid_item)
-    return plaid_item
-
-@app.get("/plaid/items/", response_model=List[PlaidItemCreate])
-def get_plaid_items(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get all Plaid items for the current user"""
-    items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
-    return items
+# Note: PlaidItem model removed from schema - plaid_item_id stored directly on Account
 
 # @app.post("/plaid/sync/")
 # def sync_plaid_data(
@@ -227,13 +233,13 @@ def get_transactions(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     category_id: Optional[int] = None,
+    subcategory_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get transactions with optional filtering"""
-    query = db.query(Transaction).join(Account).join(PlaidItem).filter(
-        PlaidItem.user_id == current_user.id
-    )
+    # Get user's account IDs (simplified - in production, add user_id to Account or join through another table)
+    query = db.query(Transaction).join(Account)
     
     if account_id:
         query = query.filter(Transaction.account_id == account_id)
@@ -241,8 +247,11 @@ def get_transactions(
         query = query.filter(Transaction.date >= start_date)
     if end_date:
         query = query.filter(Transaction.date <= end_date)
+    if subcategory_id:
+        query = query.filter(Transaction.custom_subcategory_id == subcategory_id)
     if category_id:
-        query = query.filter(Transaction.custom_category_id == category_id)
+        # Filter by category through subcategory relationship
+        query = query.join(Subcategory).filter(Subcategory.category_id == category_id)
     
     transactions = query.order_by(Transaction.date.desc()).all()
     return transactions
@@ -254,44 +263,32 @@ def create_transaction(
     db: Session = Depends(get_db)
 ):
     """Create a new transaction manually (independent of Plaid data)"""
-    # Verify that the account belongs to the current user
-    account = db.query(Account).join(PlaidItem).filter(
-        Account.id == transaction.account_id,
-        PlaidItem.user_id == current_user.id
-    ).first()
+    # Verify that the account exists
+    account = db.query(Account).filter(Account.id == transaction.account_id).first()
     
     if not account:
-        raise HTTPException(status_code=404, detail="Account not found or access denied")
-    
-    # Generate a unique transaction_id for manual transactions
-    import uuid
-    transaction_id = f"manual_{uuid.uuid4().hex[:16]}"
+        raise HTTPException(status_code=404, detail="Account not found")
     
     # Create the transaction
     db_transaction = Transaction(
         account_id=transaction.account_id,
-        transaction_id=transaction_id,
+        plaid_transaction_id=transaction.plaid_transaction_id,
         amount=transaction.amount,
         iso_currency_code=transaction.iso_currency_code,
         date=transaction.date,
         datetime=transaction.datetime,
         name=transaction.name,
         merchant_name=transaction.merchant_name,
-        payment_channel=transaction.payment_channel,
+        merchant_entity_id=transaction.merchant_entity_id,
+        logo_url=transaction.logo_url,
+        website=transaction.website,
         pending=transaction.pending,
         authorized_date=transaction.authorized_date,
         authorized_datetime=transaction.authorized_datetime,
-        location=transaction.location,
-        payment_meta=transaction.payment_meta,
-        account_owner=transaction.account_owner,
-        transaction_code=transaction.transaction_code,
         transaction_type=transaction.transaction_type,
-        custom_category_id=transaction.custom_category_id,
         custom_subcategory_id=transaction.custom_subcategory_id,
         notes=transaction.notes,
-        tags=transaction.tags,
-        is_recurring=transaction.is_recurring,
-        is_transfer=transaction.is_transfer
+        tags=transaction.tags
     )
     
     db.add(db_transaction)
@@ -307,26 +304,17 @@ def update_transaction(
     db: Session = Depends(get_db)
 ):
     """Update transaction categorization and notes"""
-    transaction = db.query(Transaction).join(Account).join(PlaidItem).filter(
-        Transaction.id == transaction_id,
-        PlaidItem.user_id == current_user.id
-    ).first()
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
-    if transaction_update.custom_category_id is not None:
-        transaction.custom_category_id = transaction_update.custom_category_id
     if transaction_update.custom_subcategory_id is not None:
         transaction.custom_subcategory_id = transaction_update.custom_subcategory_id
     if transaction_update.notes is not None:
         transaction.notes = transaction_update.notes
     if transaction_update.tags is not None:
         transaction.tags = transaction_update.tags
-    if transaction_update.is_recurring is not None:
-        transaction.is_recurring = transaction_update.is_recurring
-    if transaction_update.is_transfer is not None:
-        transaction.is_transfer = transaction_update.is_transfer
     
     db.commit()
     db.refresh(transaction)
@@ -356,7 +344,6 @@ def create_category(
         description=category.description,
         color=category.color,
         icon=category.icon,
-        parent_id=category.parent_id,
         user_id=current_user.id
     )
     db.add(db_category)
@@ -405,21 +392,126 @@ def delete_category(
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     
-    # Check if category is being used by transactions
-    transaction_count = db.query(Transaction).filter(
-        (Transaction.custom_category_id == category_id) | 
-        (Transaction.custom_subcategory_id == category_id)
+    # Check if category has subcategories
+    subcategory_count = db.query(Subcategory).filter(
+        Subcategory.category_id == category_id
     ).count()
     
-    if transaction_count > 0:
+    if subcategory_count > 0:
         raise HTTPException(
             status_code=400, 
-            detail=f"Cannot delete category. It is being used by {transaction_count} transactions."
+            detail=f"Cannot delete category. It has {subcategory_count} subcategories. Delete subcategories first."
         )
     
     db.delete(category)
     db.commit()
     return {"message": "Category deleted successfully"}
+
+# Subcategory management endpoints
+@app.get("/subcategories/", response_model=List[SubcategoryResponse])
+def get_subcategories(
+    category_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all subcategories (system and user-specific), optionally filtered by category"""
+    query = db.query(Subcategory).filter(
+        (Subcategory.user_id == current_user.id) | (Subcategory.is_system == True)
+    )
+    
+    if category_id:
+        query = query.filter(Subcategory.category_id == category_id)
+    
+    subcategories = query.order_by(Subcategory.is_system.desc(), Subcategory.name).all()
+    return subcategories
+
+@app.post("/subcategories/", response_model=SubcategoryResponse)
+def create_subcategory(
+    subcategory: SubcategoryCreate,
+    category_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new custom subcategory
+    
+    category_id is passed as a query parameter.
+    """
+    # Verify category exists and belongs to user or is system
+    category = db.query(Category).filter(
+        Category.id == category_id,
+        ((Category.user_id == current_user.id) | (Category.is_system == True))
+    ).first()
+    
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    db_subcategory = Subcategory(
+        name=subcategory.name,
+        description=subcategory.description,
+        color=subcategory.color,
+        icon=subcategory.icon,
+        category_id=category_id,
+        user_id=current_user.id
+    )
+    db.add(db_subcategory)
+    db.commit()
+    db.refresh(db_subcategory)
+    return db_subcategory
+
+@app.put("/subcategories/{subcategory_id}", response_model=SubcategoryResponse)
+def update_subcategory(
+    subcategory_id: int,
+    subcategory_update: SubcategoryCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a custom subcategory"""
+    subcategory = db.query(Subcategory).filter(
+        Subcategory.id == subcategory_id,
+        Subcategory.user_id == current_user.id
+    ).first()
+    
+    if not subcategory:
+        raise HTTPException(status_code=404, detail="Subcategory not found")
+    
+    subcategory.name = subcategory_update.name
+    subcategory.description = subcategory_update.description
+    subcategory.color = subcategory_update.color
+    subcategory.icon = subcategory_update.icon
+    
+    db.commit()
+    db.refresh(subcategory)
+    return subcategory
+
+@app.delete("/subcategories/{subcategory_id}")
+def delete_subcategory(
+    subcategory_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a custom subcategory"""
+    subcategory = db.query(Subcategory).filter(
+        Subcategory.id == subcategory_id,
+        Subcategory.user_id == current_user.id
+    ).first()
+    
+    if not subcategory:
+        raise HTTPException(status_code=404, detail="Subcategory not found")
+    
+    # Check if subcategory is being used by transactions
+    transaction_count = db.query(Transaction).filter(
+        Transaction.custom_subcategory_id == subcategory_id
+    ).count()
+    
+    if transaction_count > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot delete subcategory. It is being used by {transaction_count} transactions."
+        )
+    
+    db.delete(subcategory)
+    db.commit()
+    return {"message": "Subcategory deleted successfully"}
 
 # Analytics endpoints
 @app.get("/analytics/spending-by-category")
@@ -429,9 +521,8 @@ def get_spending_by_category(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get spending breakdown by category"""
-    query = db.query(Transaction).join(Account).join(PlaidItem).filter(
-        PlaidItem.user_id == current_user.id,
+    """Get spending breakdown by category (using transactions_as_category relationship)"""
+    query = db.query(Transaction).join(Account).filter(
         Transaction.amount < 0  # Only expenses
     )
     
@@ -442,16 +533,14 @@ def get_spending_by_category(
     
     transactions = query.all()
     
-    # Group by category
+    # Group by category using the relationship
     category_totals = {}
     for transaction in transactions:
         category_name = "Uncategorized"
-        if transaction.custom_category_id:
-            category = db.query(Category).filter(Category.id == transaction.custom_category_id).first()
-            if category:
-                category_name = category.name
-        elif transaction.plaid_category:
-            category_name = ", ".join(transaction.plaid_category)
+        if transaction.custom_subcategory_id:
+            subcategory = db.query(Subcategory).filter(Subcategory.id == transaction.custom_subcategory_id).first()
+            if subcategory and subcategory.category:
+                category_name = subcategory.category.name
         
         if category_name not in category_totals:
             category_totals[category_name] = 0
