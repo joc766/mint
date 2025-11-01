@@ -191,5 +191,82 @@ class MonthlySpendingResponse(BaseModel):
     total_amount: Decimal
     categories: List[SpendingByCategoryResponse]
 
+# Budget schemas
+class BudgetTemplateEntryBase(BaseModel):
+    budgeted_amount: Decimal
+
+class BudgetTemplateEntryCreate(BudgetTemplateEntryBase):
+    category_id: Optional[int] = None
+    subcategory_id: Optional[int] = None
+
+class BudgetTemplateEntryResponse(BudgetTemplateEntryBase):
+    id: int
+    template_id: int
+    category_id: Optional[int] = None
+    subcategory_id: Optional[int] = None
+    category: Optional[CategoryResponse] = None
+    subcategory: Optional[SubcategoryResponse] = None
+    created_at: dt_type
+    updated_at: Optional[dt_type] = None
+    
+    class Config:
+        from_attributes = True
+
+class BudgetTemplateResponse(BaseModel):
+    id: int
+    user_id: int
+    entries: List[BudgetTemplateEntryResponse] = []
+    created_at: dt_type
+    updated_at: Optional[dt_type] = None
+    
+    class Config:
+        from_attributes = True
+
+class BudgetTemplateUpdate(BaseModel):
+    entries: List[BudgetTemplateEntryCreate]
+
+class UserBudgetSettingsBase(BaseModel):
+    monthly_income: Decimal
+    monthly_savings_goal: Decimal
+
+class UserBudgetSettingsCreate(UserBudgetSettingsBase):
+    pass
+
+class UserBudgetSettingsUpdate(UserBudgetSettingsBase):
+    monthly_income: Optional[Decimal] = None
+    monthly_savings_goal: Optional[Decimal] = None
+
+class UserBudgetSettingsResponse(UserBudgetSettingsBase):
+    id: int
+    user_id: int
+    created_at: dt_type
+    updated_at: Optional[dt_type] = None
+    
+    class Config:
+        from_attributes = True
+
+# Budget analytics schemas
+class BudgetComparisonResponse(BaseModel):
+    """Shows actual spending vs budget for a category/subcategory"""
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
+    subcategory_id: Optional[int] = None
+    subcategory_name: Optional[str] = None
+    budgeted_amount: Decimal
+    actual_amount: Decimal
+    difference: Decimal  # actual - budgeted (negative means under budget)
+    percentage_used: Decimal  # (actual / budgeted) * 100
+
+class MonthlyBudgetSummaryResponse(BaseModel):
+    """Summary of budget performance for a month"""
+    year: int
+    month: int
+    budget_settings: UserBudgetSettingsResponse
+    comparisons: List[BudgetComparisonResponse]
+    total_budgeted: Decimal
+    total_spent: Decimal
+    remaining_budget: Decimal
+    savings_progress: Decimal  # How much toward savings goal
+
 # Forward references are resolved automatically by Pydantic when using string annotations
 # No explicit model_rebuild() needed - Pydantic handles this automatically

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, DECIMAL, ForeignKey, ARRAY, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, DECIMAL, ForeignKey, ARRAY, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -19,6 +19,8 @@ class User(Base):
     # Relationships
     categories = relationship("Category", back_populates="user", cascade="all, delete-orphan")
     subcategories = relationship("Subcategory", back_populates="user", cascade="all, delete-orphan")
+    budget_settings = relationship("UserBudgetSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    budget_template = relationship("BudgetTemplate", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 class Account(Base):
     __tablename__ = "accounts"
@@ -65,6 +67,11 @@ class Category(Base):
         primaryjoin="Category.id == Subcategory.category_id",
         secondaryjoin="Subcategory.id == Transaction.custom_subcategory_id",
         viewonly=True
+    )
+    
+    # Unique constraint: each user can only have one category with the same name
+    __table_args__ = (
+        UniqueConstraint('user_id', 'name', name='uq_user_category_name'),
     )
 
 class Subcategory(Base):
@@ -117,4 +124,53 @@ class Transaction(Base):
     # Relationships
     account = relationship("Account", back_populates="transactions")
     custom_subcategory = relationship("Subcategory", foreign_keys=[custom_subcategory_id], back_populates="transactions_as_subcategory")
+
+class UserBudgetSettings(Base):
+    """User's budget settings: monthly income and savings goal"""
+    __tablename__ = "user_budget_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    monthly_income = Column(DECIMAL(15, 2), nullable=False)
+    monthly_savings_goal = Column(DECIMAL(15, 2), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="budget_settings")
+
+class BudgetTemplate(Base):
+    """User's budget - single budget configuration by category/subcategory"""
+    __tablename__ = "budget_templates"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="budget_template")
+    entries = relationship("BudgetTemplateEntry", back_populates="template", cascade="all, delete-orphan")
+
+class BudgetTemplateEntry(Base):
+    """Individual budget entry for a category or subcategory"""
+    __tablename__ = "budget_template_entries"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    template_id = Column(Integer, ForeignKey("budget_templates.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=True)
+    subcategory_id = Column(Integer, ForeignKey("subcategories.id", ondelete="CASCADE"), nullable=True)
+    budgeted_amount = Column(DECIMAL(15, 2), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    template = relationship("BudgetTemplate", back_populates="entries")
+    category = relationship("Category")
+    subcategory = relationship("Subcategory")
+    
+    # Unique constraint: one entry per category/subcategory per template
+    __table_args__ = (
+        UniqueConstraint('template_id', 'category_id', 'subcategory_id', name='uq_template_entry'),
+    )
 

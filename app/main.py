@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
+from decimal import Decimal
+from sqlalchemy import func
 from plaid.api import plaid_api
 from plaid.model.transactions_get_request import TransactionsGetRequest
 from plaid.model.transactions_get_request_options import TransactionsGetRequestOptions
@@ -14,12 +16,15 @@ from plaid.configuration import Configuration
 from plaid.api_client import ApiClient
 
 from api.database import get_db, engine
-from api.models import User, Account, Transaction, Category, Subcategory
+from api.models import User, Account, Transaction, Category, Subcategory, UserBudgetSettings, BudgetTemplate, BudgetTemplateEntry
 from api.schemas import (
     UserCreate, UserResponse, AccountCreate, AccountResponse, 
     TransactionResponse, TransactionCreate, CategoryCreate, CategoryResponse,
     SubcategoryCreate, SubcategoryResponse,
-    TransactionUpdate, LinkTokenCreateRequest, LinkTokenCreateResponse, ExchangeTokenRequest, ExchangeTokenResponse
+    TransactionUpdate, LinkTokenCreateRequest, LinkTokenCreateResponse, ExchangeTokenRequest, ExchangeTokenResponse,
+    UserBudgetSettingsCreate, UserBudgetSettingsUpdate, UserBudgetSettingsResponse,
+    BudgetTemplateResponse, BudgetTemplateUpdate, BudgetTemplateEntryCreate,
+    BudgetComparisonResponse, MonthlyBudgetSummaryResponse
 )
 from api.auth import get_current_user, create_access_token, verify_password, get_password_hash
 from api.plaid_service import PlaidService
@@ -346,6 +351,18 @@ def create_category(
     db: Session = Depends(get_db)
 ):
     """Create a new custom category"""
+    # Check if category with this name already exists for this user
+    existing_category = db.query(Category).filter(
+        Category.user_id == current_user.id,
+        Category.name == category.name
+    ).first()
+    
+    if existing_category:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Category with name '{category.name}' already exists for this user"
+        )
+    
     db_category = Category(
         name=category.name,
         description=category.description,
@@ -374,11 +391,24 @@ def update_category(
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     
+    # Check if another category with this name already exists for this user
+    if category.name != category_update.name:
+        existing_category = db.query(Category).filter(
+            Category.user_id == current_user.id,
+            Category.name == category_update.name,
+            Category.id != category_id
+        ).first()
+        
+        if existing_category:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Category with name '{category_update.name}' already exists for this user"
+            )
+    
     category.name = category_update.name
     category.description = category_update.description
     category.color = category_update.color
     category.icon = category_update.icon
-    category.parent_id = category_update.parent_id
     
     db.commit()
     db.refresh(category)
@@ -554,6 +584,259 @@ def get_spending_by_category(
         category_totals[category_name] += abs(transaction.amount)
     
     return category_totals
+
+# Budget management endpoints
+
+# Budget Template endpoints - this is where users set their budget
+@app.get("/budget/", response_model=BudgetTemplateResponse)
+def get_budget(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's budget (by category/subcategory)"""
+    template = db.query(BudgetTemplate).filter(
+        BudgetTemplate.user_id == current_user.id
+    ).first()
+    
+    if not template:
+        # Create empty template if it doesn't exist
+        template = BudgetTemplate(user_id=current_user.id)
+        db.add(template)
+        db.commit()
+        db.refresh(template)
+    
+    return template
+
+@app.put("/budget/", response_model=BudgetTemplateResponse)
+def update_budget(
+    template_update: BudgetTemplateUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user's budget (replaces all entries) - set budget by category or subcategory"""
+    # Get or create template
+    template = db.query(BudgetTemplate).filter(
+        BudgetTemplate.user_id == current_user.id
+    ).first()
+    
+    if not template:
+        template = BudgetTemplate(user_id=current_user.id)
+        db.add(template)
+        db.flush()
+    
+    # Validate entries: each entry must have either category_id or subcategory_id, but not both
+    for entry in template_update.entries:
+        if entry.category_id is None and entry.subcategory_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Each budget entry must have either category_id or subcategory_id"
+            )
+        if entry.category_id is not None and entry.subcategory_id is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Budget entry cannot have both category_id and subcategory_id"
+            )
+    
+    # Delete existing entries
+    db.query(BudgetTemplateEntry).filter(BudgetTemplateEntry.template_id == template.id).delete()
+    
+    # Create new entries
+    for entry in template_update.entries:
+        db_entry = BudgetTemplateEntry(
+            template_id=template.id,
+            category_id=entry.category_id,
+            subcategory_id=entry.subcategory_id,
+            budgeted_amount=entry.budgeted_amount
+        )
+        db.add(db_entry)
+    
+    db.commit()
+    db.refresh(template)
+    return template
+
+@app.post("/budget/settings/", response_model=UserBudgetSettingsResponse)
+def create_or_update_budget_settings(
+    settings: UserBudgetSettingsCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create or update user's budget settings (monthly income and savings goal)"""
+    # Check if settings already exist
+    db_settings = db.query(UserBudgetSettings).filter(
+        UserBudgetSettings.user_id == current_user.id
+    ).first()
+    
+    if db_settings:
+        # Update existing settings
+        db_settings.monthly_income = settings.monthly_income
+        db_settings.monthly_savings_goal = settings.monthly_savings_goal
+    else:
+        # Create new settings
+        db_settings = UserBudgetSettings(
+            user_id=current_user.id,
+            monthly_income=settings.monthly_income,
+            monthly_savings_goal=settings.monthly_savings_goal
+        )
+        db.add(db_settings)
+    
+    db.commit()
+    db.refresh(db_settings)
+    return db_settings
+
+@app.get("/budget/settings/", response_model=UserBudgetSettingsResponse)
+def get_budget_settings(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's budget settings"""
+    settings = db.query(UserBudgetSettings).filter(
+        UserBudgetSettings.user_id == current_user.id
+    ).first()
+    
+    if not settings:
+        raise HTTPException(status_code=404, detail="Budget settings not found. Please create them first.")
+    
+    return settings
+
+@app.put("/budget/settings/", response_model=UserBudgetSettingsResponse)
+def update_budget_settings(
+    settings_update: UserBudgetSettingsUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user's budget settings (partial update)"""
+    db_settings = db.query(UserBudgetSettings).filter(
+        UserBudgetSettings.user_id == current_user.id
+    ).first()
+    
+    if not db_settings:
+        raise HTTPException(status_code=404, detail="Budget settings not found. Please create them first.")
+    
+    if settings_update.monthly_income is not None:
+        db_settings.monthly_income = settings_update.monthly_income
+    if settings_update.monthly_savings_goal is not None:
+        db_settings.monthly_savings_goal = settings_update.monthly_savings_goal
+    
+    db.commit()
+    db.refresh(db_settings)
+    return db_settings
+
+@app.get("/budget/monthly/{year}/{month}/summary", response_model=MonthlyBudgetSummaryResponse)
+def get_monthly_budget_summary(
+    year: int,
+    month: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get comprehensive budget summary for a month - compares transactions against current budget"""
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Month must be between 1 and 12")
+    
+    # Get user's budget template (current budget)
+    budget_template = db.query(BudgetTemplate).filter(
+        BudgetTemplate.user_id == current_user.id
+    ).first()
+    
+    if not budget_template or not budget_template.entries:
+        raise HTTPException(
+            status_code=404, 
+            detail="Budget not found. Please set up your budget first using PUT /budget/"
+        )
+    
+    # Get budget settings
+    budget_settings = db.query(UserBudgetSettings).filter(
+        UserBudgetSettings.user_id == current_user.id
+    ).first()
+    
+    if not budget_settings:
+        raise HTTPException(status_code=404, detail="Budget settings not found")
+    
+    # Calculate date range for the month
+    start_date = datetime(year, month, 1)
+    if month == 12:
+        end_date = datetime(year + 1, 1, 1)
+    else:
+        end_date = datetime(year, month + 1, 1)
+    
+    # Get all transactions for this month (expenses only, negative amounts)
+    transactions = db.query(Transaction).join(Account).filter(
+        Transaction.date >= start_date,
+        Transaction.date < end_date,
+        Transaction.amount < 0  # Only expenses
+    ).all()
+    
+    # Build comparison data
+    comparisons = []
+    total_budgeted = Decimal('0')
+    total_spent = Decimal('0')
+    
+    # Group transactions by category/subcategory
+    spending_by_subcategory = {}
+    
+    for transaction in transactions:
+        if transaction.custom_subcategory_id:
+            subcategory = db.query(Subcategory).filter(
+                Subcategory.id == transaction.custom_subcategory_id
+            ).first()
+            if subcategory:
+                if subcategory.id not in spending_by_subcategory:
+                    spending_by_subcategory[subcategory.id] = Decimal('0')
+                spending_by_subcategory[subcategory.id] += abs(transaction.amount)
+                total_spent += abs(transaction.amount)
+    
+    # Process budget entries from template
+    for entry in budget_template.entries:
+        budgeted_amount = entry.budgeted_amount
+        total_budgeted += budgeted_amount
+        
+        actual_amount = Decimal('0')
+        category_name = None
+        subcategory_name = None
+        
+        if entry.subcategory_id:
+            actual_amount = spending_by_subcategory.get(entry.subcategory_id, Decimal('0'))
+            subcategory = db.query(Subcategory).filter(Subcategory.id == entry.subcategory_id).first()
+            if subcategory:
+                subcategory_name = subcategory.name
+                category = db.query(Category).filter(Category.id == subcategory.category_id).first()
+                if category:
+                    category_name = category.name
+        elif entry.category_id:
+            # Sum all subcategories under this category
+            category = db.query(Category).filter(Category.id == entry.category_id).first()
+            if category:
+                category_name = category.name
+                for subcategory in category.subcategories:
+                    if subcategory.id in spending_by_subcategory:
+                        actual_amount += spending_by_subcategory[subcategory.id]
+        
+        difference = actual_amount - budgeted_amount
+        percentage_used = (actual_amount / budgeted_amount * 100) if budgeted_amount > 0 else Decimal('0')
+        
+        comparisons.append(BudgetComparisonResponse(
+            category_id=entry.category_id,
+            category_name=category_name,
+            subcategory_id=entry.subcategory_id,
+            subcategory_name=subcategory_name,
+            budgeted_amount=budgeted_amount,
+            actual_amount=actual_amount,
+            difference=difference,
+            percentage_used=percentage_used
+        ))
+    
+    remaining_budget = total_budgeted - total_spent
+    savings_progress = budget_settings.monthly_income - total_spent - budget_settings.monthly_savings_goal
+    
+    return MonthlyBudgetSummaryResponse(
+        year=year,
+        month=month,
+        budget_settings=budget_settings,
+        comparisons=comparisons,
+        total_budgeted=total_budgeted,
+        total_spent=total_spent,
+        remaining_budget=remaining_budget,
+        savings_progress=savings_progress
+    )
 
 if __name__ == "__main__":
     import uvicorn
