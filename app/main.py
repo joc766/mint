@@ -69,6 +69,13 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
+@app.get("/me", response_model=UserResponse)
+def get_current_user_info(
+    current_user: User = Depends(get_current_user)
+):
+    """Get the current authenticated user"""
+    return current_user
+
 @app.post("/auth/login")
 def login(email: str, password: str, db: Session = Depends(get_db)):
     """Authenticate user and return access token"""
