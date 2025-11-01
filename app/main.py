@@ -250,8 +250,8 @@ def get_transactions(
     db: Session = Depends(get_db)
 ):
     """Get transactions with optional filtering"""
-    # Get user's account IDs (simplified - in production, add user_id to Account or join through another table)
-    query = db.query(Transaction).join(Account)
+    # Use left join to include transactions without accounts
+    query = db.query(Transaction).outerjoin(Account)
     
     if account_id:
         query = query.filter(Transaction.account_id == account_id)
@@ -275,11 +275,11 @@ def create_transaction(
     db: Session = Depends(get_db)
 ):
     """Create a new transaction manually (independent of Plaid data)"""
-    # Verify that the account exists
-    account = db.query(Account).filter(Account.id == transaction.account_id).first()
-    
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
+    # Verify that the account exists if account_id is provided
+    if transaction.account_id is not None:
+        account = db.query(Account).filter(Account.id == transaction.account_id).first()
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
     
     # Create the transaction
     db_transaction = Transaction(
@@ -559,7 +559,8 @@ def get_spending_by_category(
     db: Session = Depends(get_db)
 ):
     """Get spending breakdown by category (using transactions_as_category relationship)"""
-    query = db.query(Transaction).join(Account).filter(
+    # Use outerjoin to include transactions without accounts
+    query = db.query(Transaction).outerjoin(Account).filter(
         Transaction.amount < 0  # Only expenses
     )
     
@@ -759,7 +760,8 @@ def get_monthly_budget_summary(
         end_date = datetime(year, month + 1, 1)
     
     # Get all transactions for this month (expenses only, negative amounts)
-    transactions = db.query(Transaction).join(Account).filter(
+    # Use outerjoin to include transactions without accounts
+    transactions = db.query(Transaction).outerjoin(Account).filter(
         Transaction.date >= start_date,
         Transaction.date < end_date,
         Transaction.amount < 0  # Only expenses

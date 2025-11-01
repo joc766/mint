@@ -97,7 +97,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
     
     id = Column(Integer, primary_key=True, index=True)
-    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=True)
     plaid_transaction_id = Column(String(255), unique=True)
     amount = Column(DECIMAL(15, 2), nullable=False)
     iso_currency_code = Column(String(3))

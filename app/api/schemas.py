@@ -133,8 +133,8 @@ class TransactionBase(BaseModel):
     pending: bool = False
 
 class TransactionCreate(TransactionBase):
-    account_id: int
-    plaid_transaction_id: str = None
+    account_id: Optional[int] = None
+    plaid_transaction_id: Optional[str] = None
     iso_currency_code: Optional[str] = None
     datetime: Optional[dt_type] = None
     merchant_entity_id: Optional[str] = None
@@ -150,7 +150,7 @@ class TransactionCreate(TransactionBase):
 class TransactionResponse(TransactionBase):
     id: int
     plaid_transaction_id: Optional[str] = None
-    account_id: int
+    account_id: Optional[int] = None
     iso_currency_code: Optional[str] = None
     datetime: Optional[dt_type] = None
     authorized_date: Optional[date] = None
