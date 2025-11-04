@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
 from decimal import Decimal
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from plaid.api import plaid_api
 from plaid.model.transactions_get_request import TransactionsGetRequest
 from plaid.model.transactions_get_request_options import TransactionsGetRequestOptions
@@ -262,8 +262,13 @@ def get_transactions(
     if subcategory_id:
         query = query.filter(Transaction.custom_subcategory_id == subcategory_id)
     if category_id:
-        # Filter by category through subcategory relationship
-        query = query.join(Subcategory).filter(Subcategory.category_id == category_id)
+        # Filter by category - can be direct custom_category_id or through subcategory relationship
+        query = query.outerjoin(Subcategory, Transaction.custom_subcategory_id == Subcategory.id).filter(
+            or_(
+                Transaction.custom_category_id == category_id,
+                Subcategory.category_id == category_id
+            )
+        )
     
     transactions = query.order_by(Transaction.date.desc()).all()
     return transactions
@@ -298,6 +303,7 @@ def create_transaction(
         authorized_date=transaction.authorized_date,
         authorized_datetime=transaction.authorized_datetime,
         transaction_type=transaction.transaction_type,
+        custom_category_id=transaction.custom_category_id,
         custom_subcategory_id=transaction.custom_subcategory_id,
         notes=transaction.notes,
         tags=transaction.tags
@@ -321,6 +327,8 @@ def update_transaction(
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
+    if transaction_update.custom_category_id is not None:
+        transaction.custom_category_id = transaction_update.custom_category_id
     if transaction_update.custom_subcategory_id is not None:
         transaction.custom_subcategory_id = transaction_update.custom_subcategory_id
     if transaction_update.notes is not None:

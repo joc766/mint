@@ -143,6 +143,7 @@ class TransactionCreate(TransactionBase):
     authorized_date: Optional[date] = None
     authorized_datetime: Optional[dt_type] = None
     transaction_type: Optional[str] = None
+    custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = []
@@ -161,19 +162,21 @@ class TransactionResponse(TransactionBase):
     website: Optional[str] = None
     
     # Custom categorization
+    custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = []
     
     # Relationships
     account: Optional[AccountResponse] = None
+    custom_category: Optional['CategoryResponse'] = None
     custom_subcategory: Optional['SubcategoryResponse'] = None
-    # Category is accessible through custom_subcategory.category
     
     class Config:
         from_attributes = True
 
 class TransactionUpdate(BaseModel):
+    custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None

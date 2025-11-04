@@ -59,6 +59,8 @@ class Category(Base):
     # Relationships
     user = relationship("User", back_populates="categories")
     subcategories = relationship("Subcategory", back_populates="category", cascade="all, delete-orphan")
+    # Direct transactions assigned to this category
+    transactions_as_custom_category = relationship("Transaction", foreign_keys="Transaction.custom_category_id", back_populates="custom_category")
     # Transactions where subcategory belongs to this category (parent-child relationship)
     # Gets all transactions whose subcategory has this category as its parent
     transactions_as_category = relationship(
@@ -114,6 +116,7 @@ class Transaction(Base):
     transaction_type = Column(String(50))
     
     # Custom categorization fields
+    custom_category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"))
     custom_subcategory_id = Column(Integer, ForeignKey("subcategories.id", ondelete="SET NULL"))
     notes = Column(Text)
     tags = Column(ARRAY(String))
@@ -123,6 +126,7 @@ class Transaction(Base):
     
     # Relationships
     account = relationship("Account", back_populates="transactions")
+    custom_category = relationship("Category", foreign_keys=[custom_category_id], back_populates="transactions_as_custom_category")
     custom_subcategory = relationship("Subcategory", foreign_keys=[custom_subcategory_id], back_populates="transactions_as_subcategory")
 
 class UserBudgetSettings(Base):
