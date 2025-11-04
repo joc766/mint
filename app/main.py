@@ -23,7 +23,7 @@ from api.schemas import (
     SubcategoryCreate, SubcategoryResponse,
     TransactionUpdate, LinkTokenCreateRequest, LinkTokenCreateResponse, ExchangeTokenRequest, ExchangeTokenResponse,
     UserBudgetSettingsCreate, UserBudgetSettingsUpdate, UserBudgetSettingsResponse,
-    BudgetTemplateResponse, BudgetTemplateUpdate, BudgetTemplateEntryCreate,
+    BudgetTemplateResponse, BudgetTemplateCreate, BudgetTemplateUpdate, BudgetTemplateEntryCreate,
     BudgetComparisonResponse, MonthlyBudgetSummaryResponse
 )
 from api.auth import get_current_user, create_access_token, verify_password, get_password_hash
@@ -596,45 +596,33 @@ def get_spending_by_category(
 
 # Budget management endpoints
 
-# Budget Template endpoints - this is where users set their budget
-@app.get("/budget/", response_model=BudgetTemplateResponse)
-def get_budget(
+# Budget Template endpoints - monthly budgets
+@app.post("/budget/monthly/", response_model=BudgetTemplateResponse)
+def create_monthly_budget(
+    budget_create: BudgetTemplateCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's budget (by category/subcategory)"""
-    template = db.query(BudgetTemplate).filter(
-        BudgetTemplate.user_id == current_user.id
+    """Create a new monthly budget for a user"""
+    # Validate month
+    if budget_create.month < 1 or budget_create.month > 12:
+        raise HTTPException(status_code=400, detail="Month must be between 1 and 12")
+    
+    # Check if budget already exists for this month/year
+    existing_budget = db.query(BudgetTemplate).filter(
+        BudgetTemplate.user_id == current_user.id,
+        BudgetTemplate.year == budget_create.year,
+        BudgetTemplate.month == budget_create.month
     ).first()
     
-    if not template:
-        # Create empty template if it doesn't exist
-        template = BudgetTemplate(user_id=current_user.id)
-        db.add(template)
-        db.commit()
-        db.refresh(template)
-    
-    return template
-
-@app.put("/budget/", response_model=BudgetTemplateResponse)
-def update_budget(
-    template_update: BudgetTemplateUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Update user's budget (replaces all entries) - set budget by category or subcategory"""
-    # Get or create template
-    template = db.query(BudgetTemplate).filter(
-        BudgetTemplate.user_id == current_user.id
-    ).first()
-    
-    if not template:
-        template = BudgetTemplate(user_id=current_user.id)
-        db.add(template)
-        db.flush()
+    if existing_budget:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Budget already exists for {budget_create.year}-{budget_create.month:02d}"
+        )
     
     # Validate entries: each entry must have either category_id or subcategory_id, but not both
-    for entry in template_update.entries:
+    for entry in budget_create.entries:
         if entry.category_id is None and entry.subcategory_id is None:
             raise HTTPException(
                 status_code=400,
@@ -646,11 +634,18 @@ def update_budget(
                 detail="Budget entry cannot have both category_id and subcategory_id"
             )
     
-    # Delete existing entries
-    db.query(BudgetTemplateEntry).filter(BudgetTemplateEntry.template_id == template.id).delete()
+    # Create new budget template
+    template = BudgetTemplate(
+        user_id=current_user.id,
+        month=budget_create.month,
+        year=budget_create.year,
+        total_budget=budget_create.total_budget
+    )
+    db.add(template)
+    db.flush()
     
-    # Create new entries
-    for entry in template_update.entries:
+    # Create entries
+    for entry in budget_create.entries:
         db_entry = BudgetTemplateEntry(
             template_id=template.id,
             category_id=entry.category_id,
@@ -662,6 +657,104 @@ def update_budget(
     db.commit()
     db.refresh(template)
     return template
+
+@app.get("/budget/monthly/{year}/{month}/", response_model=BudgetTemplateResponse)
+def get_monthly_budget(
+    year: int,
+    month: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's monthly budget for a specific month/year"""
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Month must be between 1 and 12")
+    
+    template = db.query(BudgetTemplate).filter(
+        BudgetTemplate.user_id == current_user.id,
+        BudgetTemplate.year == year,
+        BudgetTemplate.month == month
+    ).first()
+    
+    if not template:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Budget not found for {year}-{month:02d}. Please create it first."
+        )
+    
+    return template
+
+@app.put("/budget/monthly/{year}/{month}/", response_model=BudgetTemplateResponse)
+def update_monthly_budget(
+    year: int,
+    month: int,
+    template_update: BudgetTemplateUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user's monthly budget (can update total_budget and/or entries)"""
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Month must be between 1 and 12")
+    
+    # Get existing template
+    template = db.query(BudgetTemplate).filter(
+        BudgetTemplate.user_id == current_user.id,
+        BudgetTemplate.year == year,
+        BudgetTemplate.month == month
+    ).first()
+    
+    if not template:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Budget not found for {year}-{month:02d}. Please create it first."
+        )
+    
+    # Update total_budget if provided
+    if template_update.total_budget is not None:
+        template.total_budget = template_update.total_budget
+    
+    # Update entries if provided
+    if template_update.entries is not None:
+        # Validate entries
+        for entry in template_update.entries:
+            if entry.category_id is None and entry.subcategory_id is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Each budget entry must have either category_id or subcategory_id"
+                )
+            if entry.category_id is not None and entry.subcategory_id is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Budget entry cannot have both category_id and subcategory_id"
+                )
+        
+        # Delete existing entries
+        db.query(BudgetTemplateEntry).filter(BudgetTemplateEntry.template_id == template.id).delete()
+        
+        # Create new entries
+        for entry in template_update.entries:
+            db_entry = BudgetTemplateEntry(
+                template_id=template.id,
+                category_id=entry.category_id,
+                subcategory_id=entry.subcategory_id,
+                budgeted_amount=entry.budgeted_amount
+            )
+            db.add(db_entry)
+    
+    db.commit()
+    db.refresh(template)
+    return template
+
+@app.get("/budget/monthly/", response_model=List[BudgetTemplateResponse])
+def list_monthly_budgets(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all monthly budgets for the current user"""
+    templates = db.query(BudgetTemplate).filter(
+        BudgetTemplate.user_id == current_user.id
+    ).order_by(BudgetTemplate.year.desc(), BudgetTemplate.month.desc()).all()
+    
+    return templates
 
 @app.post("/budget/settings/", response_model=UserBudgetSettingsResponse)
 def create_or_update_budget_settings(
@@ -737,19 +830,21 @@ def get_monthly_budget_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get comprehensive budget summary for a month - compares transactions against current budget"""
+    """Get comprehensive budget summary for a month - compares transactions against monthly budget"""
     if month < 1 or month > 12:
         raise HTTPException(status_code=400, detail="Month must be between 1 and 12")
     
-    # Get user's budget template (current budget)
+    # Get user's monthly budget template for the specific month/year
     budget_template = db.query(BudgetTemplate).filter(
-        BudgetTemplate.user_id == current_user.id
+        BudgetTemplate.user_id == current_user.id,
+        BudgetTemplate.year == year,
+        BudgetTemplate.month == month
     ).first()
     
     if not budget_template or not budget_template.entries:
         raise HTTPException(
             status_code=404, 
-            detail="Budget not found. Please set up your budget first using PUT /budget/"
+            detail=f"Budget not found for {year}-{month:02d}. Please create it first using POST /budget/monthly/"
         )
     
     # Get budget settings

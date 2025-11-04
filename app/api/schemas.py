@@ -218,6 +218,9 @@ class BudgetTemplateEntryResponse(BudgetTemplateEntryBase):
 class BudgetTemplateResponse(BaseModel):
     id: int
     user_id: int
+    month: int
+    year: int
+    total_budget: Decimal
     entries: List[BudgetTemplateEntryResponse] = []
     created_at: dt_type
     updated_at: Optional[dt_type] = None
@@ -225,8 +228,15 @@ class BudgetTemplateResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class BudgetTemplateUpdate(BaseModel):
+class BudgetTemplateCreate(BaseModel):
+    month: int
+    year: int
+    total_budget: Decimal
     entries: List[BudgetTemplateEntryCreate]
+
+class BudgetTemplateUpdate(BaseModel):
+    total_budget: Optional[Decimal] = None
+    entries: Optional[List[BudgetTemplateEntryCreate]] = None
 
 class UserBudgetSettingsBase(BaseModel):
     monthly_income: Decimal

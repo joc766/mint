@@ -20,7 +20,7 @@ class User(Base):
     categories = relationship("Category", back_populates="user", cascade="all, delete-orphan")
     subcategories = relationship("Subcategory", back_populates="user", cascade="all, delete-orphan")
     budget_settings = relationship("UserBudgetSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    budget_template = relationship("BudgetTemplate", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    budget_templates = relationship("BudgetTemplate", back_populates="user", cascade="all, delete-orphan")
 
 class Account(Base):
     __tablename__ = "accounts"
@@ -144,17 +144,25 @@ class UserBudgetSettings(Base):
     user = relationship("User", back_populates="budget_settings")
 
 class BudgetTemplate(Base):
-    """User's budget - single budget configuration by category/subcategory"""
+    """User's monthly budget - budget configuration by category/subcategory for a specific month"""
     __tablename__ = "budget_templates"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    month = Column(Integer, nullable=False)  # Month number (1-12)
+    year = Column(Integer, nullable=False)  # Year (e.g., 2024)
+    total_budget = Column(DECIMAL(15, 2), nullable=False)  # Total budget for the month
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    user = relationship("User", back_populates="budget_template")
+    user = relationship("User", back_populates="budget_templates")
     entries = relationship("BudgetTemplateEntry", back_populates="template", cascade="all, delete-orphan")
+    
+    # Unique constraint: one budget per user per month/year
+    __table_args__ = (
+        UniqueConstraint('user_id', 'year', 'month', name='uq_user_monthly_budget'),
+    )
 
 class BudgetTemplateEntry(Base):
     """Individual budget entry for a category or subcategory"""
