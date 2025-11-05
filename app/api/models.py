@@ -1,8 +1,17 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, DECIMAL, ForeignKey, ARRAY, JSON, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, DECIMAL, ForeignKey, ARRAY, JSON, UniqueConstraint, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from api.database import Base
+
+# Junction table for many-to-many relationship between Users and Accounts
+user_accounts = Table(
+    'user_accounts',
+    Base.metadata,
+    Column('user_id', Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+    Column('account_id', Integer, ForeignKey('accounts.id', ondelete='CASCADE'), primary_key=True),
+    UniqueConstraint('user_id', 'account_id', name='uq_user_account')
+)
 
 class User(Base):
     __tablename__ = "users"
@@ -21,6 +30,8 @@ class User(Base):
     subcategories = relationship("Subcategory", back_populates="user", cascade="all, delete-orphan")
     budget_settings = relationship("UserBudgetSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
     budget_templates = relationship("BudgetTemplate", back_populates="user", cascade="all, delete-orphan")
+    accounts = relationship("Account", secondary=user_accounts, back_populates="users")
+    transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
 
 class Account(Base):
     __tablename__ = "accounts"
@@ -41,6 +52,7 @@ class Account(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    users = relationship("User", secondary=user_accounts, back_populates="accounts")
     transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
 
 class Category(Base):
@@ -99,6 +111,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=True)
     plaid_transaction_id = Column(String(255), unique=True)
     amount = Column(DECIMAL(15, 2), nullable=False)
@@ -125,6 +138,7 @@ class Transaction(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    user = relationship("User", back_populates="transactions")
     account = relationship("Account", back_populates="transactions")
     custom_category = relationship("Category", foreign_keys=[custom_category_id], back_populates="transactions_as_custom_category")
     custom_subcategory = relationship("Subcategory", foreign_keys=[custom_subcategory_id], back_populates="transactions_as_subcategory")

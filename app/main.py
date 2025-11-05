@@ -101,7 +101,7 @@ def create_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new account"""
+    """Create a new account and associate it with the current user"""
     db_account = Account(
         plaid_item_id=account.plaid_item_id,
         name=account.name,
@@ -116,6 +116,11 @@ def create_account(
         verification_status=account.verification_status
     )
     db.add(db_account)
+    db.flush()  # Flush to get the account ID
+    
+    # Associate the account with the current user through the many-to-many relationship
+    db_account.users.append(current_user)
+    
     db.commit()
     db.refresh(db_account)
     return db_account
@@ -125,9 +130,78 @@ def get_accounts(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all accounts"""
-    accounts = db.query(Account).all()
+    """Get all accounts accessible to the current user (accounts they are associated with)"""
+    # Get accounts through the many-to-many relationship
+    accounts = db.query(Account).join(Account.users).filter(User.id == current_user.id).all()
     return accounts
+
+@app.post("/accounts/{account_id}/users/{user_id}")
+def add_user_to_account(
+    account_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add a user to an account (requires current user to already have access to the account)"""
+    # Verify current user has access to the account
+    account = db.query(Account).join(Account.users).filter(
+        Account.id == account_id,
+        User.id == current_user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found or not accessible")
+    
+    # Get the user to add
+    user_to_add = db.query(User).filter(User.id == user_id).first()
+    if not user_to_add:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if user is already associated with the account
+    if user_to_add in account.users:
+        raise HTTPException(status_code=400, detail="User is already associated with this account")
+    
+    # Add user to account
+    account.users.append(user_to_add)
+    db.commit()
+    
+    return {"message": f"User {user_id} added to account {account_id}"}
+
+@app.delete("/accounts/{account_id}/users/{user_id}")
+def remove_user_from_account(
+    account_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove a user from an account (requires current user to have access to the account)"""
+    # Verify current user has access to the account
+    account = db.query(Account).join(Account.users).filter(
+        Account.id == account_id,
+        User.id == current_user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found or not accessible")
+    
+    # Get the user to remove
+    user_to_remove = db.query(User).filter(User.id == user_id).first()
+    if not user_to_remove:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if user is associated with the account
+    if user_to_remove not in account.users:
+        raise HTTPException(status_code=400, detail="User is not associated with this account")
+    
+    # Prevent removing the last user from an account
+    if len(account.users) == 1:
+        raise HTTPException(status_code=400, detail="Cannot remove the last user from an account")
+    
+    # Remove user from account
+    account.users.remove(user_to_remove)
+    db.commit()
+    
+    return {"message": f"User {user_id} removed from account {account_id}"}
 
 @app.post("/plaid/link/token/create", response_model=LinkTokenCreateResponse)
 def create_link_token(request: LinkTokenCreateRequest):
@@ -249,19 +323,43 @@ def get_transactions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get transactions with optional filtering"""
+    """Get transactions with optional filtering - only returns transactions for the current user"""
+    # Filter by current user first
+    query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+    
     # Use left join to include transactions without accounts
-    query = db.query(Transaction).outerjoin(Account)
+    query = query.outerjoin(Account)
     
     if account_id:
+        # Verify account is accessible to current user (through many-to-many relationship)
+        account = db.query(Account).join(Account.users).filter(
+            Account.id == account_id,
+            User.id == current_user.id
+        ).first()
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found or not accessible")
         query = query.filter(Transaction.account_id == account_id)
     if start_date:
         query = query.filter(Transaction.date >= start_date)
     if end_date:
         query = query.filter(Transaction.date <= end_date)
     if subcategory_id:
+        # Verify subcategory belongs to current user
+        subcategory = db.query(Subcategory).filter(
+            Subcategory.id == subcategory_id,
+            (Subcategory.user_id == current_user.id) | (Subcategory.is_system == True)
+        ).first()
+        if not subcategory:
+            raise HTTPException(status_code=404, detail="Subcategory not found")
         query = query.filter(Transaction.custom_subcategory_id == subcategory_id)
     if category_id:
+        # Verify category belongs to current user
+        category = db.query(Category).filter(
+            Category.id == category_id,
+            (Category.user_id == current_user.id) | (Category.is_system == True)
+        ).first()
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
         # Filter by category - can be direct custom_category_id or through subcategory relationship
         query = query.outerjoin(Subcategory, Transaction.custom_subcategory_id == Subcategory.id).filter(
             or_(
@@ -280,14 +378,18 @@ def create_transaction(
     db: Session = Depends(get_db)
 ):
     """Create a new transaction manually (independent of Plaid data)"""
-    # Verify that the account exists if account_id is provided
+    # Verify that the account exists and is accessible to current user if account_id is provided
     if transaction.account_id is not None:
-        account = db.query(Account).filter(Account.id == transaction.account_id).first()
+        account = db.query(Account).join(Account.users).filter(
+            Account.id == transaction.account_id,
+            User.id == current_user.id
+        ).first()
         if not account:
-            raise HTTPException(status_code=404, detail="Account not found")
+            raise HTTPException(status_code=404, detail="Account not found or not accessible")
     
     # Create the transaction
     db_transaction = Transaction(
+        user_id=current_user.id,
         account_id=transaction.account_id,
         plaid_transaction_id=transaction.plaid_transaction_id,
         amount=transaction.amount,
@@ -322,7 +424,10 @@ def update_transaction(
     db: Session = Depends(get_db)
 ):
     """Update transaction categorization and notes"""
-    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
     
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -543,9 +648,10 @@ def delete_subcategory(
     if not subcategory:
         raise HTTPException(status_code=404, detail="Subcategory not found")
     
-    # Check if subcategory is being used by transactions
+    # Check if subcategory is being used by transactions (only count current user's transactions)
     transaction_count = db.query(Transaction).filter(
-        Transaction.custom_subcategory_id == subcategory_id
+        Transaction.custom_subcategory_id == subcategory_id,
+        Transaction.user_id == current_user.id
     ).count()
     
     if transaction_count > 0:
@@ -567,10 +673,11 @@ def get_spending_by_category(
     db: Session = Depends(get_db)
 ):
     """Get spending breakdown by category (using transactions_as_category relationship)"""
-    # Use outerjoin to include transactions without accounts
-    query = db.query(Transaction).outerjoin(Account).filter(
+    # Filter by current user first, then use outerjoin to include transactions without accounts
+    query = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id,
         Transaction.amount < 0  # Only expenses
-    )
+    ).outerjoin(Account)
     
     if start_date:
         query = query.filter(Transaction.date >= start_date)
@@ -862,13 +969,14 @@ def get_monthly_budget_summary(
     else:
         end_date = datetime(year, month + 1, 1)
     
-    # Get all transactions for this month (expenses only, negative amounts)
+    # Get all transactions for this month (expenses only, negative amounts) for the current user
     # Use outerjoin to include transactions without accounts
-    transactions = db.query(Transaction).outerjoin(Account).filter(
+    transactions = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id,
         Transaction.date >= start_date,
         Transaction.date < end_date,
         Transaction.amount < 0  # Only expenses
-    ).all()
+    ).outerjoin(Account).all()
     
     # Build comparison data
     comparisons = []
