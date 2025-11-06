@@ -728,17 +728,13 @@ def create_monthly_budget(
             detail=f"Budget already exists for {budget_create.year}-{budget_create.month:02d}"
         )
     
-    # Validate entries: each entry must have either category_id or subcategory_id, but not both
+    # Validate entries: each entry must have at least category_id or subcategory_id
+    # Both can be present - if subcategory_id is provided, category_id will be the parent category
     for entry in budget_create.entries:
         if entry.category_id is None and entry.subcategory_id is None:
             raise HTTPException(
                 status_code=400,
                 detail="Each budget entry must have either category_id or subcategory_id"
-            )
-        if entry.category_id is not None and entry.subcategory_id is not None:
-            raise HTTPException(
-                status_code=400,
-                detail="Budget entry cannot have both category_id and subcategory_id"
             )
     
     # Create new budget template
@@ -821,17 +817,13 @@ def update_monthly_budget(
     
     # Update entries if provided
     if template_update.entries is not None:
-        # Validate entries
+        # Validate entries: each entry must have at least category_id or subcategory_id
+        # Both can be present - if subcategory_id is provided, category_id will be the parent category
         for entry in template_update.entries:
             if entry.category_id is None and entry.subcategory_id is None:
                 raise HTTPException(
                     status_code=400,
                     detail="Each budget entry must have either category_id or subcategory_id"
-                )
-            if entry.category_id is not None and entry.subcategory_id is not None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Budget entry cannot have both category_id and subcategory_id"
                 )
         
         # Delete existing entries
