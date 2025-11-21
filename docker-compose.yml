@@ -10,7 +10,7 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./app/db/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./db/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     ports:
       - "5432:5432"
     healthcheck:
@@ -23,7 +23,7 @@ services:
 
   # API Application
   api:
-    build: .
+    build: ./api
     container_name: plaid_api_app
     environment:
       DATABASE_URL: postgresql://plaid_user:plaid_password@db:5432/plaid_db
@@ -41,6 +41,31 @@ services:
     networks:
       - plaid_network
     restart: unless-stopped
+
+  # Frontend Application
+  frontend:
+    build: ./frontend
+    container_name: expense-tracker-app
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for hot reload
+      - ./frontend:/app
+      # Exclude node_modules from mount (use container's node_modules)
+      - /app/node_modules
+      # Exclude .next from mount (use container's .next)
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      # Optional: Set API URL if your API is on a different host/port
+      # If not set, the app will auto-detect the server's IP from the browser
+      # - NEXT_PUBLIC_API_URL=http://your-api-server-ip:8000
+    stdin_open: true
+    tty: true
+    networks: 
+      - plaid_network
+
+
 
 volumes:
   postgres_data:
