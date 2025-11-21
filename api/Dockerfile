@@ -15,6 +15,7 @@ RUN apt-get update \
         postgresql-client \
         gcc \
         libpq-dev \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -25,7 +26,10 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY app/ ./
+# Copy main.py first
+COPY main.py ./
+# Copy app directory as 'api' to match import statements (from api.database, etc.)
+COPY app/ ./api/
 
 # Create non-root user
 RUN adduser --disabled-password --gecos '' appuser \
