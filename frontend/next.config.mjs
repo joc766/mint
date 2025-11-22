@@ -1,13 +1,37 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Output configuration for Docker production builds
+  output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
+  
+  // Build optimizations
   eslint: {
-    ignoreDuringBuilds: true,
+    // In production, you may want to enable linting during builds
+    ignoreDuringBuilds: process.env.NODE_ENV !== 'production',
   },
   typescript: {
-    ignoreBuildErrors: true,
+    // In production, you may want to enable type checking
+    ignoreBuildErrors: process.env.NODE_ENV !== 'production',
   },
+  
+  // Image optimization (enable in production for better performance)
   images: {
-    unoptimized: true,
+    unoptimized: process.env.NODE_ENV !== 'production',
+    // Add your image domains if using external images
+    // remotePatterns: [
+    //   {
+    //     protocol: 'https',
+    //     hostname: 'example.com',
+    //   },
+    // ],
+  },
+  
+  // Production optimizations
+  compress: true,
+  poweredByHeader: false,
+  
+  // Environment variables
+  env: {
+    CUSTOM_KEY: process.env.CUSTOM_KEY,
   },
 }
 

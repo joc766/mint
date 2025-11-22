@@ -26,6 +26,34 @@ The API uses a PostgreSQL database with the following main entities:
 
 ## Setup
 
+### Quick Start with Docker Compose (Recommended)
+
+The easiest way to get started is using Docker Compose, which sets up all services (database, API, and frontend) together:
+
+1. **Set up environment variables:**
+   ```bash
+   # Create a .env file in the project root
+   export PLAID_CLIENT_ID=your_plaid_client_id
+   export PLAID_SECRET=your_plaid_secret
+   export PLAID_ENV=sandbox  # or 'development' or 'production'
+   ```
+
+2. **Start all services:**
+   ```bash
+   # Start database, API, and frontend (development mode)
+   docker-compose up
+   
+   # Or start in detached mode
+   docker-compose up -d
+   ```
+
+3. **Access the application:**
+   - Frontend: http://localhost:3000
+   - API: http://localhost:8000
+   - API Docs: http://localhost:8000/docs
+
+### Manual Setup
+
 1. **Install Dependencies**:
    ```bash
    pip install -r requirements.txt
@@ -180,10 +208,105 @@ The API is built with:
 - **PostgreSQL**: Robust relational database
 - **JWT**: Secure authentication
 
+## Frontend Application
+
+The project includes a Next.js frontend application for interacting with the API.
+
+### Quick Start
+
+**Development Mode (Default):**
+```bash
+# Start all services including frontend in development mode
+docker-compose up
+
+# Or start only the frontend
+docker-compose up frontend
+```
+
+**Production Mode:**
+```bash
+# Build and start all services (db, api, frontend) in production
+BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
+
+# Or start only the frontend in production
+BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build frontend
+```
+
+### Development vs Production Builds
+
+The frontend supports two build modes:
+
+#### Development Mode
+- **Hot reload enabled** - Changes reflect immediately
+- **Source code mounted** - Edit files locally and see changes
+- **Fast startup** - No build step required
+- **Best for**: Local development and debugging
+
+**Start development:**
+```bash
+docker-compose up frontend
+```
+
+#### Production Mode
+- **Optimized build** - Code is minified and optimized
+- **Smaller Docker image** - Only production dependencies
+- **Better performance** - Optimized bundles and caching
+- **Best for**: Staging, production deployments, and performance testing
+
+**Build and start production:**
+```bash
+# Build and start all services in production (single command)
+BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
+```
+
+### Environment Variables
+
+Set `NEXT_PUBLIC_API_URL` to configure the API endpoint:
+
+**Development:**
+```bash
+# In docker-compose.yml
+NEXT_PUBLIC_API_URL=http://api:8000
+```
+
+**Production:**
+```bash
+# In docker-compose.prod.yml or environment
+NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+```
+
+### Testing Production Build Locally
+
+To test the production build before deploying:
+
+```bash
+BUILD_MODE=production docker-compose up frontend
+```
+
+Access at: http://localhost:3000
+
+### Build Configuration
+
+The frontend uses:
+- **Next.js 14** - React framework with SSR/SSG
+- **TypeScript** - Type-safe development
+- **Tailwind CSS** - Utility-first styling
+- **Docker multi-stage builds** - Optimized production images
+
+**Key files:**
+- `frontend/Dockerfile` - Multi-stage Dockerfile (dev & prod targets)
+- `frontend/next.config.mjs` - Next.js configuration with production optimizations
+- `docker-compose.yml` - Unified configuration (supports both dev and prod via BUILD_MODE)
+
+For detailed build documentation, see:
+- `frontend/BUILD.md` - Comprehensive build guide
+- `QUICK_START.md` - Quick reference commands
+
 ## Next Steps
 
 1. Set up your Plaid account and get API credentials
 2. Configure your database and environment variables
 3. Run the API and start syncing your financial data
 4. Use the categorization features to organize your transactions
-5. Build a frontend to interact with the API
+5. Start the frontend application to interact with the API
+6. Build and test production builds before deploying
