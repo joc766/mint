@@ -38,8 +38,8 @@ export function AccountsList() {
 
     setIsSubmitting(true)
     const newAccount: AccountCreate = {
-      account_name: accountName,
-      account_type: accountType,
+      name: accountName,
+      type: accountType,
     }
 
     const result = await createAccount(newAccount)
@@ -63,10 +63,10 @@ export function AccountsList() {
     setIsSubmitting(false)
   }
 
-  const handleDeleteAccount = async (accountId: string) => {
+  const handleDeleteAccount = async (accountId: number | string) => {
     if (!window.confirm("Are you sure you want to delete this account?")) return
 
-    const success = await deleteAccount(accountId)
+    const success = await deleteAccount(String(accountId))
 
     if (success) {
       toast({
@@ -104,35 +104,52 @@ export function AccountsList() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {accounts.map((account) => (
-            <Card key={account.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle>{account.account_name}</CardTitle>
-                    <CardDescription className="capitalize">{account.account_type}</CardDescription>
+          {accounts.map((account) => {
+            const balance = account.balance_current 
+              ? parseFloat(account.balance_current) 
+              : account.balance_available 
+                ? parseFloat(account.balance_available) 
+                : 0
+            return (
+              <Card key={account.id}>
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle>{account.name}</CardTitle>
+                      <CardDescription className="capitalize">
+                        {account.subtype ? `${account.type} - ${account.subtype}` : account.type}
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteAccount(account.id)}
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteAccount(account.id)}
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Current Balance</p>
-                    <p className="text-2xl font-bold">${account.balance.toFixed(2)}</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Current Balance</p>
+                      <p className="text-2xl font-bold">
+                        {account.balance_iso_currency_code || "$"}
+                        {balance.toFixed(2)}
+                      </p>
+                    </div>
+                    {account.mask && (
+                      <p className="text-xs text-muted-foreground">****{account.mask}</p>
+                    )}
+                    {account.official_name && account.official_name !== account.name && (
+                      <p className="text-xs text-muted-foreground">{account.official_name}</p>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">ID: {account.id.substring(0, 8)}...</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
 

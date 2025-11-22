@@ -167,6 +167,33 @@ def add_user_to_account(
     
     return {"message": f"User {user_id} added to account {account_id}"}
 
+@app.delete("/accounts/{account_id}")
+def delete_account(
+    account_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete an account (only if current user is associated with it)"""
+    # Verify current user has access to the account
+    account = db.query(Account).join(Account.users).filter(
+        Account.id == account_id,
+        User.id == current_user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found or not accessible")
+    
+    # Remove the current user from the account
+    account.users.remove(current_user)
+    
+    # If this was the last user, delete the account entirely
+    if len(account.users) == 0:
+        db.delete(account)
+    
+    db.commit()
+    
+    return {"message": f"Account {account_id} deleted successfully"}
+
 @app.delete("/accounts/{account_id}/users/{user_id}")
 def remove_user_from_account(
     account_id: int,

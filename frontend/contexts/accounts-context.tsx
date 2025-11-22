@@ -12,7 +12,7 @@ interface AccountsContextType {
   error?: string
   fetchAccounts: () => Promise<void>
   createAccount: (account: AccountCreate) => Promise<AccountResponse | null>
-  deleteAccount: (accountId: string) => Promise<boolean>
+  deleteAccount: (accountId: string | number) => Promise<boolean>
 }
 
 const AccountsContext = createContext<AccountsContextType | undefined>(undefined)
@@ -53,7 +53,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
     return data as AccountResponse
   }
 
-  const deleteAccount = async (accountId: string) => {
+  const deleteAccount = async (accountId: string | number) => {
     const { error: apiError } = await apiClient.delete(`/accounts/${accountId}`)
 
     if (apiError) {
@@ -61,7 +61,9 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
       return false
     }
 
-    setAccounts(accounts.filter((acc) => acc.id !== accountId))
+    // Convert accountId to number for comparison since API returns numeric IDs
+    const idToCompare = typeof accountId === 'string' ? parseInt(accountId, 10) : accountId
+    setAccounts(accounts.filter((acc) => acc.id !== idToCompare))
     return true
   }
 
