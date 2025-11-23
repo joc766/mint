@@ -32,8 +32,12 @@ COPY . .
 
 # Build argument to control build mode
 ARG BUILD_MODE=production
+# Build argument for API URL (must be available at build time for NEXT_PUBLIC_* vars)
+ARG NEXT_PUBLIC_API_URL=http://api:8000
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Set NEXT_PUBLIC_API_URL as environment variable during build
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Build the application
 RUN if [ "$BUILD_MODE" = "production" ]; then \

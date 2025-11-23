@@ -52,6 +52,7 @@ services:
       target: ${BUILD_MODE:-development}
       args:
         BUILD_MODE: ${BUILD_MODE:-development}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:8000}
     container_name: expense-tracker-app
     ports:
       - "3000:3000"
