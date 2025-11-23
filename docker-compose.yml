@@ -26,7 +26,7 @@ services:
     container_name: plaid_api_app
     environment:
       DATABASE_URL: postgresql://plaid_user:plaid_password@db:5432/plaid_db
-      SECRET_KEY: your-super-secret-jwt-key-change-in-production
+      SECRET_KEY: ${SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
       PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
       PLAID_SECRET: ${PLAID_SECRET}
       PLAID_ENV: ${PLAID_ENV:-sandbox}
@@ -52,7 +52,7 @@ services:
       target: ${BUILD_MODE:-development}
       args:
         BUILD_MODE: ${BUILD_MODE:-development}
-        NEXT_PUBLIC_API_URL: https://api.archane-technologies.net
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     container_name: expense-tracker-app
     ports:
       - "3000:3000"
@@ -64,12 +64,11 @@ services:
     #   - /app/.next
     environment:
       - NODE_ENV=${BUILD_MODE:-development}
-      - NEXT_PUBLIC_API_URL=https://api.archane-technologies.net
     stdin_open: true
     tty: true
     restart: ${RESTART_POLICY:-no}
-    depends_on:
-      - api
+    # depends_on:
+    #   - api
     networks:
       - plaid_network
 
