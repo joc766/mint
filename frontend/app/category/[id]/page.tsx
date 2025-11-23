@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { MonthSelector } from "@/components/month-selector"
 import { useCurrency } from "@/contexts/currency-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -181,14 +180,14 @@ export default function CategoryPage() {
     
     // Filter transactions for this category and month first
     // Include transactions that have this category_id directly, or have a subcategory that belongs to this category
-    const subcategoryIds = subcategories.map((s) => Number.parseInt(s.id))
+    const subcategoryIds = subcategories.map((s) => typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id)
     const filteredExpenses = transactions.filter((t) => {
       const expenseDate = new Date(t.date)
       const isCorrectMonth = 
         expenseDate.getMonth() === selectedMonth.getMonth() &&
         expenseDate.getFullYear() === selectedMonth.getFullYear()
       
-      if (!isCorrectMonth || t.amount >= 0) return false // Only expenses
+      if (!isCorrectMonth || Number(t.amount) >= 0) return false // Only expenses
       
       // Transaction has this category directly
       if (t.custom_category_id === Number.parseInt(categoryId)) {
@@ -206,34 +205,54 @@ export default function CategoryPage() {
     setCategoryExpenses(filteredExpenses)
 
     // Calculate total spent
-    const total = filteredExpenses.reduce((sum, expense) => sum + Math.abs(expense.amount), 0)
+    const total = filteredExpenses.reduce((sum, expense) => sum + Math.abs(Number(expense.amount)), 0)
     setTotalSpent(total)
 
     // Now calculate budgets using the filtered expenses
     // Only use budget template if it matches the selected month
     if (budgetTemplate?.entries && budgetTemplate.year === year && budgetTemplate.month === month) {
       // Find category-level budget entry (subcategory_id is null)
+      const parsedCategoryId = Number.parseInt(categoryId)
       const categoryBudgetEntry = budgetTemplate.entries.find(
-        (entry) => entry.category_id === Number.parseInt(categoryId) && entry.subcategory_id === null
+        (entry) => {
+          const entryCategoryId = typeof entry.category_id === "string" 
+            ? Number.parseInt(entry.category_id, 10) 
+            : entry.category_id
+          return entryCategoryId === parsedCategoryId && entry.subcategory_id === null
+        }
       )
       if (categoryBudgetEntry) {
-        budget = categoryBudgetEntry.budgeted_amount
+        budget = typeof categoryBudgetEntry.budgeted_amount === "string" 
+          ? Number.parseFloat(categoryBudgetEntry.budgeted_amount) 
+          : categoryBudgetEntry.budgeted_amount || 0
       }
       
       // Find all subcategory budget entries for this category
       const subcategoryEntries = budgetTemplate.entries.filter(
-        (entry) => entry.category_id === Number.parseInt(categoryId) && entry.subcategory_id !== null
+        (entry) => {
+          const entryCategoryId = typeof entry.category_id === "string" 
+            ? Number.parseInt(entry.category_id, 10) 
+            : entry.category_id
+          return entryCategoryId === parsedCategoryId && entry.subcategory_id !== null
+        }
       )
       
       subcategoryEntries.forEach((entry) => {
-        const subcategory = subcategories.find((s) => Number.parseInt(s.id) === entry.subcategory_id)
+        const subcategoryId = entry.subcategory_id
+        if (subcategoryId === null) return
+        const subcategory = subcategories.find((s) => {
+          const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+          return sId === subcategoryId
+        })
         if (subcategory) {
           // Calculate spending for this subcategory
           const subcategorySpending = filteredExpenses
             .filter((t) => t.custom_subcategory_id === entry.subcategory_id)
-            .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+            .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
           
-          const subcategoryBudget = entry.budgeted_amount
+          const subcategoryBudget = typeof entry.budgeted_amount === "string" 
+            ? Number.parseFloat(entry.budgeted_amount) 
+            : entry.budgeted_amount || 0
           const subcategoryRemaining = subcategoryBudget - subcategorySpending
           const subcategoryPercentUsed = subcategoryBudget > 0
             ? Math.min(Math.round((subcategorySpending / subcategoryBudget) * 100), 100)
@@ -242,7 +261,7 @@ export default function CategoryPage() {
           subcategoryBudgetList.push({
             id: entry.id,
             name: subcategory.name,
-            icon: subcategory.icon,
+            icon: subcategory.icon || undefined,
             budget: subcategoryBudget,
             spent: subcategorySpending,
             remaining: subcategoryRemaining,
@@ -413,7 +432,7 @@ export default function CategoryPage() {
                           {new Date(expense.date).toLocaleDateString()}
                         </div>
                       </div>
-                      <div className="font-medium">{formatAmount(Math.abs(expense.amount))}</div>
+                      <div className="font-medium">{formatAmount(Math.abs(Number(expense.amount)))}</div>
                     </div>
                   ))}
                 </div>

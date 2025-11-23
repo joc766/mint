@@ -44,6 +44,7 @@ services:
   # Frontend Application
   # Development mode (default): docker-compose up (or docker-compose up frontend)
   # Production mode: BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
+  # Note: When BUILD_MODE=production, target becomes "production" (alias for "runner")
   frontend:
     build:
       context: ./frontend

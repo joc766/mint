@@ -74,6 +74,10 @@ ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
 
+# Alias for production (allows BUILD_MODE=production to work)
+# This is just an alias - Docker will use the runner stage
+FROM runner AS production
+
 # ============================================
 # Development stage
 # ============================================

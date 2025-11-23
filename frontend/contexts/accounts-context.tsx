@@ -72,7 +72,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
     if (isAuthenticated) {
       fetchAccounts()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, fetchAccounts])
 
   return (
     <AccountsContext.Provider

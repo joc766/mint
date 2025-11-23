@@ -7,8 +7,15 @@ import { Filter, X } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 
-export function ReportFilters({ onFilterChange }) {
-  const [isOpen, setIsOpen] = useState(false)
+interface ReportFilterState {
+  timeRange: string
+  compareWithPrevious: boolean
+  groupBy: string
+  chartType: string
+}
+
+export function ReportFilters({ onFilterChange }: { onFilterChange: (filters: ReportFilterState) => void }) {
+  const [_isOpen, setIsOpen] = useState(false)
   const [filters, setFilters] = useState({
     timeRange: "6months", // 3months, 6months, 1year, custom
     compareWithPrevious: true,
@@ -17,7 +24,7 @@ export function ReportFilters({ onFilterChange }) {
   })
   const [activeFilters, setActiveFilters] = useState(0)
 
-  const handleFilterChange = (key, value) => {
+  const handleFilterChange = (key: keyof ReportFilterState, value: string | boolean) => {
     const newFilters = { ...filters, [key]: value }
     setFilters(newFilters)
 
@@ -30,7 +37,7 @@ export function ReportFilters({ onFilterChange }) {
     }
 
     const activeCount = Object.entries(newFilters).filter(([key, value]) => {
-      return value !== defaultFilters[key]
+      return value !== defaultFilters[key as keyof ReportFilterState]
     }).length
 
     setActiveFilters(activeCount)

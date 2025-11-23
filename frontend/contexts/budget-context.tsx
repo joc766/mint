@@ -6,7 +6,6 @@ import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/contexts/auth-context"
 import type {
   BudgetTemplateResponse,
-  BudgetTemplateEntryResponse,
   BudgetTemplateUpdate,
   BudgetTemplateCreate,
   UserBudgetSettingsResponse,
@@ -184,7 +183,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     if (isAuthenticated) {
       fetchBudgetSettings()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, fetchBudgetSettings])
 
   return (
     <BudgetContext.Provider

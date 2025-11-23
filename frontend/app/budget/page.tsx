@@ -14,7 +14,7 @@ import { useCurrency } from "@/contexts/currency-context"
 import { useAuth } from "@/contexts/auth-context"
 import { apiClient } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
-import type { BudgetTemplateEntryUpdate, BudgetTemplateCreate, SubcategoryResponse, UserBudgetSettingsResponse, CategoryResponse, CategoryCreate, SubcategoryCreate } from "@/lib/types"
+import type { BudgetTemplateEntryUpdate, BudgetTemplateCreate, SubcategoryResponse, CategoryResponse, CategoryCreate, SubcategoryCreate } from "@/lib/types"
 import { Plus, Trash2, ArrowLeft, Smile } from "lucide-react"
 import {
   Dialog,
@@ -53,7 +53,7 @@ export default function BudgetPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const { formatAmount } = useCurrency()
   const { categories, isLoading: categoriesLoading, fetchCategories } = useCategories()
-  const { budgetSettings, fetchBudgetSettings, budgetTemplate, fetchMonthlyBudget, updateMonthlyBudget, createMonthlyBudget } = useBudget()
+  const { budgetSettings, fetchBudgetSettings, fetchMonthlyBudget, updateMonthlyBudget, createMonthlyBudget } = useBudget()
   const { toast } = useToast()
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [isLoadingSubcategories, setIsLoadingSubcategories] = useState(false)
@@ -161,6 +161,7 @@ export default function BudgetPage() {
     }
 
     loadBudget()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated])
 
     const addEntry = () => {
@@ -241,7 +242,7 @@ export default function BudgetPage() {
     setIsCreatingCategory(true)
     setError(undefined)
 
-    const { data, error: apiError } = await apiClient.post<CategoryResponse>("/categories/", {
+    const { error: apiError } = await apiClient.post<CategoryResponse>("/categories/", {
       name: newCategory.name.trim(),
       description: newCategory.description?.trim() || undefined,
       color: newCategory.color || undefined,
@@ -274,7 +275,7 @@ export default function BudgetPage() {
     setIsCreatingSubcategory(true)
     setError(undefined)
 
-    const { data, error: apiError } = await apiClient.post<SubcategoryResponse>(
+    const { error: apiError } = await apiClient.post<SubcategoryResponse>(
       `/subcategories/?category_id=${pendingSubcategoryCategoryId}`,
       {
         name: newSubcategory.name.trim(),
@@ -371,11 +372,14 @@ export default function BudgetPage() {
       entry.subcategory_id = value
       // Auto-populate parent category when subcategory is selected
       if (value !== null) {
-        const selectedSubcategory = subcategories.find(
-          (sub) => Number.parseInt(sub.id) === value
-        )
+        const selectedSubcategory = subcategories.find((sub) => {
+          const sId = typeof sub.id === "string" ? Number.parseInt(sub.id, 10) : sub.id
+          return sId === value
+        })
         if (selectedSubcategory) {
-          entry.category_id = Number.parseInt(selectedSubcategory.category_id)
+          entry.category_id = typeof selectedSubcategory.category_id === "string" 
+            ? Number.parseInt(selectedSubcategory.category_id, 10) 
+            : selectedSubcategory.category_id
         }
       }
       // Don't clear category when subcategory is cleared - entries can have both
@@ -388,12 +392,10 @@ export default function BudgetPage() {
         const monthlyIncome = Number(budgetSettings.monthly_income) || 0
         const monthlySavingsGoal = Number(budgetSettings.monthly_savings_goal) || 0
         const availableBudget = monthlyIncome - monthlySavingsGoal
-        const totalBudgeted = entries.reduce((sum, e, i) => {
+        const _totalBudgeted = entries.reduce((sum, e, i) => {
           const amount = i === index ? newAmount : (Number(e.budgeted_amount) || 0)
           return isNaN(amount) ? sum : sum + amount
         }, 0)
-        const remainingBudget = availableBudget - totalBudgeted
-
         // Calculate total budgeted - only category-level budgets (subcategories are nested)
         const categoryLevelTotal = newEntries
           .filter((e) => e.subcategory_id === null)
@@ -413,8 +415,16 @@ export default function BudgetPage() {
           if (entry.subcategory_id) {
             // Use category_id from entry if available, otherwise get from subcategory
             const categoryId = entry.category_id || (() => {
-              const sub = subcategories.find((s) => Number.parseInt(s.id) === entry.subcategory_id)
-              return sub ? Number.parseInt(sub.category_id) : null
+              const subcategoryId = entry.subcategory_id
+              if (subcategoryId === null) return null
+              const sub = subcategories.find((s) => {
+                const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+                return sId === subcategoryId
+              })
+              if (!sub) return null
+              return typeof sub.category_id === "string" 
+                ? Number.parseInt(sub.category_id, 10) 
+                : sub.category_id
             })()
             
             if (categoryId) {
@@ -472,7 +482,12 @@ export default function BudgetPage() {
     }
 
     // Filter out entries with 0 amount - these are placeholders
-    const validEntries = entries.filter((entry) => entry.budgeted_amount > 0)
+    const validEntries = entries.filter((entry) => {
+      const amount = entry.budgeted_amount !== undefined 
+        ? (typeof entry.budgeted_amount === "string" ? Number.parseFloat(entry.budgeted_amount) : entry.budgeted_amount) 
+        : 0
+      return amount > 0
+    })
 
     // Validate entries
     for (const entry of validEntries) {
@@ -508,9 +523,17 @@ export default function BudgetPage() {
             ? Number.parseInt(entry.category_id, 10)
             : entry.category_id
         } else {
-          const sub = subcategories.find((s) => Number.parseInt(s.id) === entry.subcategory_id)
-          if (sub) {
-            categoryId = Number.parseInt(sub.category_id)
+          const subcategoryId = entry.subcategory_id
+          if (subcategoryId !== null) {
+            const sub = subcategories.find((s) => {
+              const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+              return sId === subcategoryId
+            })
+            if (sub) {
+              categoryId = typeof sub.category_id === "string" 
+                ? Number.parseInt(sub.category_id, 10) 
+                : sub.category_id
+            }
           }
         }
         
@@ -525,7 +548,7 @@ export default function BudgetPage() {
     for (const [categoryId, subcategoryTotal] of subcategoryTotals.entries()) {
       const categoryBudget = categoryBudgets.get(categoryId) || 0
       if (subcategoryTotal > categoryBudget) {
-        const category = categories.find((c) => Number.parseInt(c.id) === categoryId)
+        const category = categories.find((c) => c.id === categoryId)
         const categoryName = category?.name || `Category ${categoryId}`
         setError(
           `Subcategory budgets for ${categoryName} total ${formatAmount(subcategoryTotal)}, which exceeds the category budget of ${formatAmount(categoryBudget)}. Please adjust your budgets.`
@@ -679,9 +702,12 @@ export default function BudgetPage() {
     // First, find all category-level entries (entries with category_id but no subcategory_id)
     entries.forEach((entry, index) => {
       if (entry.category_id && !entry.subcategory_id) {
-        const category = categories.find((c) => Number.parseInt(c.id) === entry.category_id)
+        const entryCategoryId = typeof entry.category_id === "string" 
+          ? Number.parseInt(entry.category_id, 10) 
+          : entry.category_id
+        const category = categories.find((c) => c.id === entryCategoryId)
         if (category) {
-          const categoryId = Number.parseInt(category.id)
+          const categoryId = category.id
           if (!categoryMap.has(categoryId)) {
             categoryMap.set(categoryId, {
               category,
@@ -701,13 +727,17 @@ export default function BudgetPage() {
     // Subcategory entries can have both category_id and subcategory_id
     entries.forEach((entry, index) => {
       if (entry.subcategory_id) {
-        const subcategory = subcategories.find((s) => Number.parseInt(s.id) === entry.subcategory_id)
+        const subcategoryId = entry.subcategory_id
+        const subcategory = subcategories.find((s) => {
+          const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+          return sId === subcategoryId
+        })
         if (subcategory) {
           // Use the category_id from the entry if available, otherwise use the subcategory's parent
           const categoryId = entry.category_id 
-            ? Number.parseInt(String(entry.category_id))
-            : Number.parseInt(subcategory.category_id)
-          const category = categories.find((c) => Number.parseInt(c.id) === categoryId)
+            ? (typeof entry.category_id === "string" ? Number.parseInt(entry.category_id, 10) : entry.category_id)
+            : (typeof subcategory.category_id === "string" ? Number.parseInt(subcategory.category_id, 10) : subcategory.category_id)
+          const category = categories.find((c) => c.id === categoryId)
           if (category) {
             if (!categoryMap.has(categoryId)) {
               categoryMap.set(categoryId, {
@@ -731,7 +761,7 @@ export default function BudgetPage() {
 
   // Calculate remaining budget per category
   const getCategoryRemainingBudget = (categoryId: number) => {
-    const categoryTotal = organizedEntries.find((org) => Number.parseInt(org.category.id) === categoryId)
+    const categoryTotal = organizedEntries.find((org) => org.category.id === categoryId)
     if (!categoryTotal) return 0
     
     const categoryBudget = categoryTotal.categoryEntries.reduce(
@@ -898,7 +928,7 @@ export default function BudgetPage() {
                   {organizedEntries.length > 0 && (
                     <div className="space-y-4 mb-6">
                       {organizedEntries.map((orgEntry) => {
-                        const categoryRemaining = getCategoryRemainingBudget(Number.parseInt(orgEntry.category.id))
+                        const categoryRemaining = getCategoryRemainingBudget(orgEntry.category.id)
                         const categoryBudget = orgEntry.categoryEntries.reduce(
                           (sum, catEntry) => sum + (Number(catEntry.entry.budgeted_amount) || 0),
                           0
@@ -918,7 +948,7 @@ export default function BudgetPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleDeleteCategory(Number.parseInt(orgEntry.category.id))}
+                                  onClick={() => handleDeleteCategory(orgEntry.category.id)}
                                   className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                 >
                                   <Trash2 className="h-3 w-3" />
@@ -946,7 +976,7 @@ export default function BudgetPage() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => addCategoryBudgetEntry(Number.parseInt(orgEntry.category.id))}
+                                    onClick={() => addCategoryBudgetEntry(orgEntry.category.id)}
                                   >
                                     <Plus className="mr-2 h-3 w-3" />
                                     Add Budget
@@ -1016,7 +1046,7 @@ export default function BudgetPage() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => {
-                                    setPendingSubcategoryCategoryId(Number.parseInt(orgEntry.category.id))
+                                    setPendingSubcategoryCategoryId(orgEntry.category.id)
                                     setIsCreateSubcategoryOpen(true)
                                   }}
                                 >
@@ -1036,7 +1066,12 @@ export default function BudgetPage() {
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => handleDeleteSubcategory(Number.parseInt(subEntry.subcategory.id))}
+                                        onClick={() => {
+                                          const subcategoryId = typeof subEntry.subcategory.id === "string" 
+                                            ? Number.parseInt(subEntry.subcategory.id, 10) 
+                                            : subEntry.subcategory.id
+                                          handleDeleteSubcategory(subcategoryId)
+                                        }}
                                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                       >
                                         <Trash2 className="h-3 w-3" />
@@ -1089,11 +1124,17 @@ export default function BudgetPage() {
                               })}
 
                               {/* Show subcategories without budget entries */}
-                              {getSubcategoriesForCategory(Number.parseInt(orgEntry.category.id))
+                              {getSubcategoriesForCategory(orgEntry.category.id)
                                 .filter((sub) => 
-                                  !orgEntry.subcategories.some((subEntry) => 
-                                    Number.parseInt(subEntry.subcategory.id) === Number.parseInt(sub.id)
-                                  )
+                                  !orgEntry.subcategories.some((subEntry) => {
+                                    const subEntryId = typeof subEntry.subcategory.id === "string" 
+                                      ? Number.parseInt(subEntry.subcategory.id, 10) 
+                                      : subEntry.subcategory.id
+                                    const subId = typeof sub.id === "string" 
+                                      ? Number.parseInt(sub.id, 10) 
+                                      : sub.id
+                                    return subEntryId === subId
+                                  })
                                 )
                                 .map((subcategory) => (
                                   <div key={subcategory.id} className="grid gap-4 md:grid-cols-3 items-center bg-gray-50/50 dark:bg-gray-900/50 rounded p-3 border-2 border-dashed">
@@ -1103,7 +1144,12 @@ export default function BudgetPage() {
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => handleDeleteSubcategory(Number.parseInt(subcategory.id))}
+                                        onClick={() => {
+                                          const subcategoryId = typeof subcategory.id === "string" 
+                                            ? Number.parseInt(subcategory.id, 10) 
+                                            : subcategory.id
+                                          handleDeleteSubcategory(subcategoryId)
+                                        }}
                                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                       >
                                         <Trash2 className="h-3 w-3" />
@@ -1114,10 +1160,12 @@ export default function BudgetPage() {
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => addSubcategoryBudgetEntry(
-                                          Number.parseInt(orgEntry.category.id),
-                                          Number.parseInt(subcategory.id)
-                                        )}
+                                        onClick={() => {
+                                          const subcategoryId = typeof subcategory.id === "string" 
+                                            ? Number.parseInt(subcategory.id, 10) 
+                                            : subcategory.id
+                                          addSubcategoryBudgetEntry(orgEntry.category.id, subcategoryId)
+                                        }}
                                       >
                                         <Plus className="mr-2 h-3 w-3" />
                                         Add Budget
@@ -1139,7 +1187,7 @@ export default function BudgetPage() {
                   )}
 
                   {/* Unorganized entries (entries without category/subcategory) */}
-                  {entries.filter((e, i) => {
+                  {entries.filter((e) => {
                     // Show entries that don't have a category_id or subcategory_id
                     // Entries with category_id/subcategory_id are shown in organizedEntries
                     return !e.category_id && !e.subcategory_id
@@ -1199,7 +1247,7 @@ export default function BudgetPage() {
                                       <div className="px-2 py-1.5 text-sm text-muted-foreground">No categories available</div>
                                     ) : (
                                       categories.map((category) => (
-                                        <SelectItem key={category.id} value={category.id}>
+                                        <SelectItem key={category.id} value={String(category.id)}>
                                           {category.icon && <span className="mr-2">{category.icon}</span>}
                                           {category.name}
                                         </SelectItem>
@@ -1251,7 +1299,7 @@ export default function BudgetPage() {
                                       </div>
                                     ) : (
                                       entrySubcategories.map((subcategory) => (
-                                        <SelectItem key={subcategory.id} value={subcategory.id}>
+                                        <SelectItem key={subcategory.id} value={String(subcategory.id)}>
                                           {subcategory.icon && <span className="mr-2">{subcategory.icon}</span>}
                                           {subcategory.name}
                                         </SelectItem>
@@ -1501,7 +1549,7 @@ export default function BudgetPage() {
                     <div className="px-2 py-1.5 text-sm text-muted-foreground">No categories available</div>
                   ) : (
                     categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
+                      <SelectItem key={category.id} value={String(category.id)}>
                         {category.icon && <span className="mr-2">{category.icon}</span>}
                         {category.name}
                       </SelectItem>
