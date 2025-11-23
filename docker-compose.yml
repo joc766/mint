@@ -55,11 +55,12 @@ services:
     container_name: expense-tracker-app
     ports:
       - "3000:3000"
-    volumes:
-      # Volumes are mounted in development, ignored in production (no volumes needed)
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+    # volumes:
+    #   # Volumes are mounted in development, ignored in production (no volumes needed)
+    #   # To use development mode with hot-reloading, uncomment these lines:
+    #   - ./frontend:/app
+    #   - /app/node_modules
+    #   - /app/.next
     environment:
       - NODE_ENV=${BUILD_MODE:-development}
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:8000}
