@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/contexts/auth-context"
 import type { CategoryResponse } from "@/lib/types"
@@ -21,7 +21,7 @@ export function CategoriesProvider({ children }: { children: React.ReactNode }) 
   const [error, setError] = useState<string>()
   const { isAuthenticated, user } = useAuth()
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     if (!isAuthenticated) return
 
     setIsLoading(true)
@@ -51,7 +51,7 @@ export function CategoriesProvider({ children }: { children: React.ReactNode }) 
 
     setCategories(filteredCategories)
     setIsLoading(false)
-  }
+  }, [isAuthenticated])
 
   // Clear categories when user logs out
   useEffect(() => {
@@ -66,8 +66,7 @@ export function CategoriesProvider({ children }: { children: React.ReactNode }) 
     if (isAuthenticated && user) {
       fetchCategories()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user])
+  }, [isAuthenticated, user, fetchCategories])
 
   return (
     <CategoriesContext.Provider

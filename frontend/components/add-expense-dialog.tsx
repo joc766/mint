@@ -90,10 +90,17 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
 
     if (values.subcategory_id && values.subcategory_id !== "") {
       // If subcategory is selected, get its parent category_id
-      const subcategory = subcategories.find((s) => s.id === values.subcategory_id)
+      const subcategory = subcategories.find((s) => {
+        const sId = typeof s.id === "string" ? s.id : String(s.id)
+        return sId === values.subcategory_id
+      })
       if (subcategory) {
-        custom_subcategory_id = Number.parseInt(subcategory.id)
-        custom_category_id = Number.parseInt(subcategory.category_id)
+        custom_subcategory_id = typeof subcategory.id === "string" 
+          ? Number.parseInt(subcategory.id, 10) 
+          : subcategory.id
+        custom_category_id = typeof subcategory.category_id === "string" 
+          ? Number.parseInt(subcategory.category_id, 10) 
+          : subcategory.category_id
       }
     } else if (values.category_id && values.category_id !== "") {
       // If only category is selected (no subcategory)
@@ -232,7 +239,7 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
                               <span className="text-muted-foreground">Clear selection</span>
                             </SelectItem>
                             {categories.map((category) => (
-                              <SelectItem key={category.id} value={category.id}>
+                              <SelectItem key={category.id} value={String(category.id)}>
                                 {category.icon && <span className="mr-2">{category.icon}</span>}
                                 {category.name}
                               </SelectItem>
@@ -263,8 +270,8 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
                           if (value) {
                             const selectedSubcategory = subcategories.find((s) => s.id === value)
                             if (selectedSubcategory) {
-                              form.setValue("category_id", selectedSubcategory.category_id)
-                              setSelectedCategoryId(selectedSubcategory.category_id)
+                              form.setValue("category_id", String(selectedSubcategory.category_id))
+                              setSelectedCategoryId(String(selectedSubcategory.category_id))
                             }
                           }
                         }
@@ -298,7 +305,7 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
                               <span className="text-muted-foreground">Clear selection</span>
                             </SelectItem>
                             {subcategories.map((subcategory) => (
-                              <SelectItem key={subcategory.id} value={subcategory.id}>
+                              <SelectItem key={subcategory.id} value={String(subcategory.id)}>
                                 {subcategory.icon && <span className="mr-2">{subcategory.icon}</span>}
                                 {subcategory.name}
                               </SelectItem>

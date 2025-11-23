@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       return { error: "No access token received" }
-    } catch (err) {
+    } catch (_err) {
       return { error: "An unexpected error occurred" }
     }
   }
@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       return { error: "Registration failed" }
-    } catch (err) {
+    } catch (_err) {
       return { error: "An unexpected error occurred" }
     }
   }

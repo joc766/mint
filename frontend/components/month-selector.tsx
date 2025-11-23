@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 
-export function MonthSelector({ onMonthChange }) {
+export function MonthSelector({ onMonthChange }: { onMonthChange: (date: Date) => void }) {
   const [date, setDate] = useState(new Date())
 
   const monthNames = [
@@ -40,7 +40,8 @@ export function MonthSelector({ onMonthChange }) {
     onMonthChange(newDate)
   }
 
-  const handleCalendarSelect = (newDate) => {
+  const handleCalendarSelect = (newDate: Date | undefined) => {
+    if (!newDate) return
     // Set day to 1 to just select the month
     const selectedDate = new Date(newDate.getFullYear(), newDate.getMonth(), 1)
     setDate(selectedDate)
@@ -67,10 +68,13 @@ export function MonthSelector({ onMonthChange }) {
             initialFocus
             // Show only month and year view
             showOutsideDays={false}
-            ISOWeek={false}
             captionLayout="dropdown-buttons"
             fromYear={2020}
             toYear={2030}
+            defaultMonth={date}
+            fixedWeeks
+            // Force type to avoid inference issues
+            {...({} as any)}
           />
         </PopoverContent>
       </Popover>

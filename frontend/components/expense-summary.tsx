@@ -18,7 +18,7 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [totalSpent, setTotalSpent] = useState(0)
   const [percentUsed, setPercentUsed] = useState(0)
-  const [dailyBudget, setDailyBudget] = useState(0)
+  const [_dailyBudget, setDailyBudget] = useState(0)
   const [daysLeft, setDaysLeft] = useState(0)
   const [highestCategory, setHighestCategory] = useState({ name: "N/A", spent: 0 })
   const [highestMerchant, setHighestMerchant] = useState({ name: "N/A", amount: 0 })
@@ -59,24 +59,25 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
     })
 
     // Calculate total spent (only negative amounts for expenses)
-    const total = monthTransactions.filter((t) => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0)
+    const total = monthTransactions.filter((t) => Number(t.amount) < 0).reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
     setTotalSpent(total)
 
     // Calculate percentage of budget used
-    const percent = Math.min(Math.round((total / monthlyBudget) * 100), 100)
+    const percent = Math.min(Math.round((total / Number(monthlyBudget)) * 100), 100)
     setPercentUsed(percent)
 
     // Get highest expense category (properly resolve category names)
     const categorySpending: Record<string, number> = {}
     monthTransactions.forEach((t) => {
-      if (t.amount < 0) {
+      if (Number(t.amount) < 0) {
         let categoryName = "Uncategorized"
         
         // Check if transaction has a subcategory
         if (t.custom_subcategory_id) {
-          const subcategory = subcategories.find(
-            (s) => Number.parseInt(s.id) === t.custom_subcategory_id
-          )
+          const subcategory = subcategories.find((s) => {
+            const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+            return sId === t.custom_subcategory_id
+          })
           if (subcategory) {
             // Find parent category
             const parentCategory = categories.find(
@@ -89,9 +90,7 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
         } 
         // Check if transaction has a category (but no subcategory)
         else if (t.custom_category_id) {
-          const category = categories.find(
-            (c) => Number.parseInt(c.id) === t.custom_category_id
-          )
+          const category = categories.find((c) => c.id === t.custom_category_id)
           if (category) {
             categoryName = category.name
           }
@@ -99,7 +98,7 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
         
         // Only add to spending map if it's not truly uncategorized
         if (categoryName !== "Uncategorized") {
-          categorySpending[categoryName] = (categorySpending[categoryName] || 0) + Math.abs(t.amount)
+          categorySpending[categoryName] = (categorySpending[categoryName] || 0) + Math.abs(Number(t.amount))
         }
       }
     })
@@ -115,9 +114,9 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
     // Get highest expense merchant
     const merchantSpending: Record<string, number> = {}
     monthTransactions.forEach((t) => {
-      if (t.amount < 0) {
+      if (Number(t.amount) < 0) {
         const merchant = t.merchant_name || t.name || "Unknown"
-        merchantSpending[merchant] = (merchantSpending[merchant] || 0) + Math.abs(t.amount)
+        merchantSpending[merchant] = (merchantSpending[merchant] || 0) + Math.abs(Number(t.amount))
       }
     })
 
@@ -139,9 +138,9 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
     }
 
     // Calculate daily budget
-    const remainingBudget = Math.max(monthlyBudget - total, 0)
+    const remainingBudget = Math.max(Number(monthlyBudget) - total, 0)
     setDailyBudget(daysLeft > 0 ? remainingBudget / daysLeft : 0)
-  }, [transactions, selectedMonth, monthlyBudget, budgetTemplate, categories, subcategories])
+  }, [transactions, selectedMonth, monthlyBudget, budgetTemplate, categories, subcategories, daysLeft])
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -150,7 +149,7 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
           <CardTitle className="text-sm font-medium">Total Budget</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatAmount(monthlyBudget)}</div>
+          <div className="text-2xl font-bold">{formatAmount(Number(monthlyBudget))}</div>
           <p className="text-xs text-muted-foreground">
             for {selectedMonth.toLocaleString("default", { month: "long", year: "numeric" })}
           </p>

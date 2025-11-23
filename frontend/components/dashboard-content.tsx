@@ -74,7 +74,7 @@ export function DashboardContent() {
         return (
           tDate.getMonth() === date.getMonth() &&
           tDate.getFullYear() === date.getFullYear() &&
-          t.amount < 0
+          Number(t.amount) < 0
         )
       })
 
@@ -92,7 +92,7 @@ export function DashboardContent() {
       return (
         tDate.getMonth() === selectedMonth.getMonth() &&
         tDate.getFullYear() === selectedMonth.getFullYear() &&
-        t.amount < 0
+        Number(t.amount) < 0
       )
     })
 
@@ -102,21 +102,23 @@ export function DashboardContent() {
       let categoryName = "Uncategorized"
 
       if (t.custom_subcategory_id) {
-        const subcategory = subcategories.find(
-          (s) => Number.parseInt(s.id) === t.custom_subcategory_id
-        )
+        const subcategory = subcategories.find((s) => {
+          const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+          return sId === t.custom_subcategory_id
+        })
         if (subcategory) {
-          const parentCategory = categories.find(
-            (c) => String(c.id) === String(subcategory.category_id)
-          )
+          const parentCategory = categories.find((c) => {
+            const categoryId = typeof subcategory.category_id === "string" 
+              ? Number.parseInt(subcategory.category_id, 10) 
+              : subcategory.category_id
+            return c.id === categoryId
+          })
           if (parentCategory) {
             categoryName = parentCategory.name
           }
         }
       } else if (t.custom_category_id) {
-        const category = categories.find(
-          (c) => Number.parseInt(c.id) === t.custom_category_id
-        )
+        const category = categories.find((c) => c.id === t.custom_category_id)
         if (category) {
           categoryName = category.name
         }
@@ -153,7 +155,7 @@ export function DashboardContent() {
       return (
         tDate.getMonth() === currentMonth &&
         tDate.getFullYear() === currentYear &&
-        t.amount < 0
+        Number(t.amount) < 0
       )
     })
 
@@ -162,7 +164,7 @@ export function DashboardContent() {
       return (
         tDate.getMonth() === prevMonth &&
         tDate.getFullYear() === prevYear &&
-        t.amount < 0
+        Number(t.amount) < 0
       )
     })
 
@@ -191,7 +193,7 @@ export function DashboardContent() {
       return (
         tDate.getMonth() === selectedMonth.getMonth() &&
         tDate.getFullYear() === selectedMonth.getFullYear() &&
-        t.amount < 0
+        Number(t.amount) < 0
       )
     })
 
@@ -228,7 +230,7 @@ export function DashboardContent() {
       return (
         tDate.getMonth() === prevMonth &&
         tDate.getFullYear() === prevYear &&
-        t.amount < 0
+        Number(t.amount) < 0
       )
     })
     const prevDaysInMonth = new Date(prevYear, prevMonth + 1, 0).getDate()

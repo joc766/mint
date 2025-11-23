@@ -42,10 +42,26 @@ const colors = [
   "#607D8B", // Gray Blue
 ]
 
-export function AddBudgetDialog({ open, onOpenChange, onAddBudget }) {
+interface AddBudgetDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onAddBudget: (category: {
+    id: string
+    name: string
+    icon: string
+    budget: number
+    color: string
+    spent: number
+    remaining: number
+    percentUsed: number
+    isOverspent: boolean
+  }) => void
+}
+
+export function AddBudgetDialog({ open, onOpenChange, onAddBudget }: AddBudgetDialogProps) {
   const { currency } = useCurrency()
-  const [selectedIcon, setSelectedIcon] = useState(icons[0])
-  const [selectedColor, setSelectedColor] = useState(colors[0])
+  const [_selectedIcon, setSelectedIcon] = useState(icons[0])
+  const [_selectedColor, setSelectedColor] = useState(colors[0])
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -57,7 +73,7 @@ export function AddBudgetDialog({ open, onOpenChange, onAddBudget }) {
     },
   })
 
-  const onSubmit = (values) => {
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
     // Generate a unique ID (in a real app, this would come from the backend)
     const newId = `new-${Date.now()}`
 

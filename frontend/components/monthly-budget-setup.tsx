@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -63,14 +63,14 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
   const [error, setError] = useState<string>()
   const [entryErrors, setEntryErrors] = useState<Record<number, string>>({})
   const [budgetSettings, setBudgetSettings] = useState<UserBudgetSettingsResponse | null>(null)
-  const [isLoadingBudgetSettings, setIsLoadingBudgetSettings] = useState(false)
+  const [_isLoadingBudgetSettings, setIsLoadingBudgetSettings] = useState(false)
   const hasLoadedDefaults = useRef(false)
   const errorRef = useRef<HTMLDivElement>(null)
 
   // Dialog states
   const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false)
   const [isCreateSubcategoryOpen, setIsCreateSubcategoryOpen] = useState(false)
-  const [pendingEntryIndex, setPendingEntryIndex] = useState<number | null>(null)
+  const [_pendingEntryIndex, setPendingEntryIndex] = useState<number | null>(null)
   const [pendingSubcategoryCategoryId, setPendingSubcategoryCategoryId] = useState<number | null>(null)
   const [categoryEmojiPickerOpen, setCategoryEmojiPickerOpen] = useState(false)
   const [subcategoryEmojiPickerOpen, setSubcategoryEmojiPickerOpen] = useState(false)
@@ -148,7 +148,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
   }, [error])
 
   // Default categories to pre-load
-  const defaultCategories = [
+  const defaultCategories = useMemo(() => [
     { name: "Food", icon: "🍔" },
     { name: "Travel", icon: "✈️" },
     { name: "Entertainment", icon: "🎬" },
@@ -156,7 +156,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
     { name: "Rent", icon: "🏠" },
     { name: "Groceries", icon: "🛒" },
     { name: "Health", icon: "🏥" },
-  ]
+  ], [])
 
   // Pre-load default category entries when categories are loaded (only once)
   useEffect(() => {
@@ -187,7 +187,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
           if (!defaultCat) continue
           
           try {
-            const { data, error } = await apiClient.post<CategoryResponse>("/categories/", {
+            const { error } = await apiClient.post<CategoryResponse>("/categories/", {
               name: defaultCat.name,
               icon: defaultCat.icon,
               color: "#3B82F6",
@@ -214,7 +214,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
         const category = latestCategories.find((cat) => cat.name.toLowerCase() === defaultCat.name.toLowerCase())
         if (category) {
           defaultEntries.push({
-            category_id: Number.parseInt(category.id),
+            category_id: category.id,
             subcategory_id: null,
             budgeted_amount: 0,
           })
@@ -227,13 +227,18 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
     }
     
     loadDefaultCategories()
-  }, [categoriesLoading, entries.length, categories, fetchCategories])
+  }, [categoriesLoading, entries.length, categories, fetchCategories, defaultCategories])
 
   const addEntry = () => {
     const monthlyIncome = budgetSettings ? Number(budgetSettings.monthly_income) : 0
     const monthlySavingsGoal = budgetSettings ? Number(budgetSettings.monthly_savings_goal) : 0
     const availableBudget = monthlyIncome - monthlySavingsGoal
-    const totalBudgeted = entries.reduce((sum, entry) => sum + entry.budgeted_amount, 0)
+    const totalBudgeted = entries.reduce((sum, entry) => {
+      const amount = typeof entry.budgeted_amount === "string" 
+        ? Number.parseFloat(entry.budgeted_amount) 
+        : entry.budgeted_amount || 0
+      return sum + amount
+    }, 0)
     const remainingBudget = availableBudget - totalBudgeted
 
     if (remainingBudget <= 0) {
@@ -262,7 +267,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
   ) => {
     const newEntries = [...entries]
     const entry = { ...newEntries[index] }
-    const oldAmount = entry.budgeted_amount
+    const _oldAmount = entry.budgeted_amount
 
     if (field === "category_id") {
       entry.category_id = value
@@ -271,11 +276,14 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
       entry.subcategory_id = value
       // Auto-populate parent category when subcategory is selected
       if (value !== null) {
-        const selectedSubcategory = subcategories.find(
-          (sub) => Number.parseInt(sub.id) === value
-        )
+        const selectedSubcategory = subcategories.find((sub) => {
+          const sId = typeof sub.id === "string" ? Number.parseInt(sub.id, 10) : sub.id
+          return sId === value
+        })
         if (selectedSubcategory) {
-          entry.category_id = Number.parseInt(selectedSubcategory.category_id)
+          entry.category_id = typeof selectedSubcategory.category_id === "string" 
+            ? Number.parseInt(selectedSubcategory.category_id, 10) 
+            : selectedSubcategory.category_id
         }
       }
       // Don't clear category when subcategory is cleared - entries can have both
@@ -289,9 +297,14 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
         const monthlySavingsGoal = Number(budgetSettings.monthly_savings_goal)
         const availableBudget = monthlyIncome - monthlySavingsGoal
         // Calculate total budgeted including the new amount for this entry
-        const totalBudgeted = entries.reduce((sum, e, i) => sum + (i === index ? newAmount : e.budgeted_amount), 0)
-        const remainingBudget = availableBudget - totalBudgeted
-
+        const totalBudgeted = entries.reduce((sum, e, i) => {
+          const amount = i === index 
+            ? newAmount 
+            : (typeof e.budgeted_amount === "string" 
+              ? Number.parseFloat(e.budgeted_amount) 
+              : e.budgeted_amount || 0)
+          return sum + amount
+        }, 0)
         // Check if total exceeds available budget
         if (totalBudgeted > availableBudget) {
           setEntryErrors((prev) => ({
@@ -354,7 +367,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
     setIsCreatingCategory(true)
     setError(undefined)
 
-    const { data, error: apiError } = await apiClient.post<CategoryResponse>("/categories/", {
+    const { error: apiError } = await apiClient.post<CategoryResponse>("/categories/", {
       name: newCategory.name.trim(),
       description: newCategory.description?.trim() || undefined,
       color: newCategory.color || undefined,
@@ -397,7 +410,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
     setIsCreatingSubcategory(true)
     setError(undefined)
 
-    const { data, error: apiError } = await apiClient.post<SubcategoryResponse>(
+    const { error: apiError } = await apiClient.post<SubcategoryResponse>(
       `/subcategories/?category_id=${pendingSubcategoryCategoryId}`,
       {
         name: newSubcategory.name.trim(),
@@ -517,7 +530,12 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
     }
 
     // Filter out entries with 0 amount - these are likely placeholders
-    const validEntries = entries.filter((entry) => entry.budgeted_amount > 0)
+    const validEntries = entries.filter((entry) => {
+      const amount = typeof entry.budgeted_amount === "string" 
+        ? Number.parseFloat(entry.budgeted_amount) 
+        : entry.budgeted_amount || 0
+      return amount > 0
+    })
 
     if (validEntries.length === 0) {
       setError("Please add at least one budget entry with an amount greater than 0")
@@ -558,9 +576,17 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
             ? Number.parseInt(entry.category_id, 10)
             : entry.category_id
         } else {
-          const sub = subcategories.find((s) => Number.parseInt(s.id) === entry.subcategory_id)
-          if (sub) {
-            categoryId = Number.parseInt(sub.category_id)
+          const subcategoryId = entry.subcategory_id
+          if (subcategoryId !== null) {
+            const sub = subcategories.find((s) => {
+              const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+              return sId === subcategoryId
+            })
+            if (sub) {
+              categoryId = typeof sub.category_id === "string" 
+                ? Number.parseInt(sub.category_id, 10) 
+                : sub.category_id
+            }
           }
         }
         
@@ -575,7 +601,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
     for (const [categoryId, subcategoryTotal] of subcategoryTotals.entries()) {
       const categoryBudget = categoryBudgets.get(categoryId) || 0
       if (subcategoryTotal > categoryBudget) {
-        const category = categories.find((c) => Number.parseInt(c.id) === categoryId)
+        const category = categories.find((c) => c.id === categoryId)
         const categoryName = category?.name || `Category ${categoryId}`
         setError(
           `Subcategory budgets for ${categoryName} total $${subcategoryTotal.toFixed(2)}, which exceeds the category budget of $${categoryBudget.toFixed(2)}. Please adjust your budgets.`
@@ -617,7 +643,9 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
             ? Number.parseInt(entry.subcategory_id, 10)
             : entry.subcategory_id
           : null,
-      budgeted_amount: entry.budgeted_amount,
+      budgeted_amount: typeof entry.budgeted_amount === "string" 
+        ? Number.parseFloat(entry.budgeted_amount) 
+        : (entry.budgeted_amount || 0),
     }))
 
     // Create monthly budget using the new endpoint
@@ -645,7 +673,12 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
     }
   }
 
-  const totalBudget = entries.reduce((sum, entry) => sum + entry.budgeted_amount, 0)
+  const totalBudget = entries.reduce((sum, entry) => {
+    const amount = typeof entry.budgeted_amount === "string" 
+      ? Number.parseFloat(entry.budgeted_amount) 
+      : entry.budgeted_amount || 0
+    return sum + amount
+  }, 0)
   const monthlyIncome = budgetSettings ? Number(budgetSettings.monthly_income) : 0
   const monthlySavingsGoal = budgetSettings ? Number(budgetSettings.monthly_savings_goal) : 0
   const availableBudget = monthlyIncome - monthlySavingsGoal
@@ -653,16 +686,16 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
   const isBudgetExceeded = remainingBudget < 0
 
   // Helper to get category name by ID
-  const getCategoryName = (categoryId: number | null) => {
+  const _getCategoryName = (categoryId: number | null) => {
     if (categoryId === null) return ""
-    const category = categories.find((cat) => cat.id === String(categoryId))
+    const category = categories.find((cat) => String(cat.id) === String(categoryId))
     return category ? `${category.icon ? category.icon + " " : ""}${category.name}` : ""
   }
 
   // Helper to get subcategory name by ID
-  const getSubcategoryName = (subcategoryId: number | null) => {
+  const _getSubcategoryName = (subcategoryId: number | null) => {
     if (subcategoryId === null) return ""
-    const subcategory = subcategories.find((sub) => sub.id === String(subcategoryId))
+    const subcategory = subcategories.find((sub) => String(sub.id) === String(subcategoryId))
     return subcategory ? `${subcategory.icon ? subcategory.icon + " " : ""}${subcategory.name}` : ""
   }
 
@@ -718,7 +751,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteCategory(Number.parseInt(category.id))}
+                      onClick={() => handleDeleteCategory(category.id)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -759,7 +792,12 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteSubcategory(Number.parseInt(subcategory.id))}
+                        onClick={() => {
+                          const subcategoryId = typeof subcategory.id === "string" 
+                            ? Number.parseInt(subcategory.id, 10) 
+                            : subcategory.id
+                          handleDeleteSubcategory(subcategoryId)
+                        }}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -871,7 +909,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
                           <div className="px-2 py-1.5 text-sm text-muted-foreground">No categories available</div>
                         ) : (
                           categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
+                            <SelectItem key={category.id} value={String(category.id)}>
                               {category.icon && <span className="mr-2">{category.icon}</span>}
                               {category.name}
                             </SelectItem>
@@ -916,7 +954,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
                           <div className="px-2 py-1.5 text-sm text-muted-foreground">No subcategories available</div>
                         ) : (
                           subcategories.map((subcategory) => (
-                            <SelectItem key={subcategory.id} value={subcategory.id}>
+                            <SelectItem key={subcategory.id} value={String(subcategory.id)}>
                               {subcategory.icon && <span className="mr-2">{subcategory.icon}</span>}
                               {subcategory.name}
                             </SelectItem>
@@ -1154,7 +1192,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
                     <div className="px-2 py-1.5 text-sm text-muted-foreground">No categories available</div>
                   ) : (
                     categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
+                      <SelectItem key={category.id} value={String(category.id)}>
                         {category.icon && <span className="mr-2">{category.icon}</span>}
                         {category.name}
                       </SelectItem>

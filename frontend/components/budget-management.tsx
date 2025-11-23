@@ -3,15 +3,14 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertTriangle, Pencil } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { useCurrency } from "@/contexts/currency-context"
 import { useBudget } from "@/contexts/budget-context"
 import { useTransactions } from "@/contexts/transactions-context"
 import { useCategories } from "@/contexts/categories-context"
 import { apiClient } from "@/lib/api-client"
-import type { BudgetTemplateEntryResponse, SubcategoryResponse } from "@/lib/types"
+import type { SubcategoryResponse } from "@/lib/types"
 
 interface CategoryBudget {
   id: number | string
@@ -39,7 +38,7 @@ interface CategoryBudget {
 export function BudgetManagement({ selectedMonth = new Date() }) {
   const router = useRouter()
   const { formatAmount } = useCurrency()
-  const { budgetTemplate, fetchMonthlyBudget, createMonthlyBudget, updateMonthlyBudget } = useBudget()
+  const { budgetTemplate, fetchMonthlyBudget, updateMonthlyBudget } = useBudget()
   const { transactions, fetchTransactions } = useTransactions()
   const { categories } = useCategories()
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
@@ -111,7 +110,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
       return (
         date.getMonth() === selectedMonth.getMonth() &&
         date.getFullYear() === selectedMonth.getFullYear() &&
-        t.amount < 0 // Only expenses
+        Number(t.amount) < 0 // Only expenses
       )
     })
 
@@ -139,7 +138,10 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
     // First, process category-level entries (no subcategory_id)
     budgetTemplate.entries.forEach((entry) => {
       if (entry.subcategory_id === null && entry.category_id) {
-        const category = categories.find((c) => Number.parseInt(c.id) === entry.category_id)
+        const entryCategoryId = typeof entry.category_id === "string" 
+          ? Number.parseInt(entry.category_id, 10) 
+          : entry.category_id
+        const category = categories.find((c) => c.id === entryCategoryId)
         if (category) {
           const key = `category_${entry.category_id}`
           const spent = Number(spendingMap[key]) || 0
@@ -153,7 +155,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
           categoryBudgetMap.set(entry.category_id, {
             id: entry.id,
             name: category.name,
-            icon: category.icon || "",
+            icon: category.icon || undefined,
             budget,
             spent,
             remaining: safeRemaining,
@@ -170,11 +172,18 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
     // Then, process subcategory entries and aggregate under their parent categories
     budgetTemplate.entries.forEach((entry) => {
       if (entry.subcategory_id !== null) {
-        const subcategory = subcategories.find((s) => Number.parseInt(s.id) === entry.subcategory_id)
-        if (subcategory) {
-          // Use category_id from entry if available, otherwise use subcategory's parent
-          const categoryId = entry.category_id || Number.parseInt(subcategory.category_id)
-          const category = categories.find((c) => Number.parseInt(c.id) === categoryId)
+        const subcategoryId = entry.subcategory_id
+        if (subcategoryId !== null) {
+          const subcategory = subcategories.find((s) => {
+            const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+            return sId === subcategoryId
+          })
+          if (subcategory) {
+            // Use category_id from entry if available, otherwise use subcategory's parent
+            const categoryId = entry.category_id || (typeof subcategory.category_id === "string" 
+              ? Number.parseInt(subcategory.category_id, 10) 
+              : subcategory.category_id)
+            const category = categories.find((c) => c.id === categoryId)
           
           if (category) {
             const subcategoryKey = `subcategory_${entry.subcategory_id}`
@@ -194,7 +203,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
               categoryBudgetMap.set(categoryId, {
                 id: `category_${categoryId}`,
                 name: category.name,
-                icon: category.icon || "",
+                icon: category.icon || undefined,
                 budget: 0,
                 spent: categoryLevelSpent,
                 remaining: 0,
@@ -211,7 +220,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
             categoryBudget.subcategories!.push({
               id: entry.id,
               name: subcategory.name,
-              icon: subcategory.icon || "",
+              icon: subcategory.icon || undefined,
               budget: subcategoryBudget,
               spent: subcategorySpent,
               remaining: isNaN(subcategoryRemaining) ? 0 : subcategoryRemaining,
@@ -221,6 +230,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
             // Aggregate subcategory spending into category total spending
             categoryBudget.spent += subcategorySpent
           }
+        }
         }
       }
     })
@@ -289,7 +299,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
     }
   }
 
-  const handleBudgetUpdate = async (entryId: number, newBudget: number) => {
+  const _handleBudgetUpdate = async (entryId: number, newBudget: number) => {
     if (!budgetTemplate?.entries) return
 
     const year = selectedMonth.getFullYear()
@@ -301,7 +311,12 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
     )
 
     // Calculate new total budget
-    const totalBudget = updatedEntries.reduce((sum, entry) => sum + entry.budgeted_amount, 0)
+    const totalBudget = updatedEntries.reduce((sum, entry) => {
+      const amount = typeof entry.budgeted_amount === "string" 
+        ? Number.parseFloat(entry.budgeted_amount) 
+        : entry.budgeted_amount || 0
+      return sum + amount
+    }, 0)
 
     const success = await updateMonthlyBudget(year, month, {
       total_budget: totalBudget,
@@ -328,7 +343,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
     return (
       date.getMonth() === selectedMonth.getMonth() &&
       date.getFullYear() === selectedMonth.getFullYear() &&
-      t.amount < 0 // Only expenses
+      Number(t.amount) < 0 // Only expenses
     )
   })
   const totalSpent = monthTransactions.reduce((sum, t) => {
@@ -430,7 +445,13 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
           {filteredBudgets.map((category) => {
             // Determine category ID for navigation
             const categoryId = category.categoryId || (category.subcategoryId 
-              ? subcategories.find(s => Number.parseInt(s.id) === category.subcategoryId)?.category_id 
+              ? (() => {
+                  const subcategory = subcategories.find((s) => {
+                    const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+                    return sId === category.subcategoryId
+                  })
+                  return subcategory?.category_id
+                })() 
               : null)
             
             const handleCardClick = () => {
