@@ -52,7 +52,7 @@ services:
       target: ${BUILD_MODE:-development}
       args:
         BUILD_MODE: ${BUILD_MODE:-development}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:8000}
+        NEXT_PUBLIC_API_URL: api.archane-technologies.net
     container_name: expense-tracker-app
     ports:
       - "3000:3000"
@@ -64,7 +64,7 @@ services:
     #   - /app/.next
     environment:
       - NODE_ENV=${BUILD_MODE:-development}
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:8000}
+      - NEXT_PUBLIC_API_URL=api.archane-technologies.net
     stdin_open: true
     tty: true
     restart: ${RESTART_POLICY:-no}
