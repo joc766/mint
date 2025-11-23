@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/contexts/auth-context"
 import type { AccountResponse, AccountCreate } from "@/lib/types"
@@ -23,7 +23,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string>()
   const { isAuthenticated } = useAuth()
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     if (!isAuthenticated) return
 
     setIsLoading(true)
@@ -39,7 +39,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
 
     setAccounts(data || [])
     setIsLoading(false)
-  }
+  }, [isAuthenticated])
 
   const createAccount = async (account: AccountCreate) => {
     const { data, error: apiError } = await apiClient.post<AccountResponse>("/accounts/", account)
