@@ -1,12 +1,11 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/contexts/auth-context"
 import type {
   BudgetTemplateResponse,
-  BudgetTemplateEntryResponse,
   BudgetTemplateUpdate,
   BudgetTemplateCreate,
   UserBudgetSettingsResponse,
@@ -128,7 +127,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const fetchBudgetSettings = async () => {
+  const fetchBudgetSettings = useCallback(async () => {
     if (!isAuthenticated) return
 
     try {
@@ -143,7 +142,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch budget settings")
     }
-  }
+  }, [isAuthenticated])
 
   const updateBudgetSettings = async (settings: UserBudgetSettingsCreate): Promise<boolean> => {
     if (!isAuthenticated) return false
@@ -184,7 +183,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     if (isAuthenticated) {
       fetchBudgetSettings()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, fetchBudgetSettings])
 
   return (
     <BudgetContext.Provider

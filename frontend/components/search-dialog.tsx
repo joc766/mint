@@ -24,9 +24,19 @@ const searchData = [
   { type: "category", id: 5, name: "Rent", count: 1, amount: 450.0, color: "#34A853" },
 ]
 
-export function SearchDialog({ open, onOpenChange }) {
+interface SearchResult {
+  type: string
+  id: number
+  name: string
+  category?: string
+  count?: number
+  amount: number
+  color: string
+}
+
+export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [results, setResults] = useState([])
+  const [results, setResults] = useState<SearchResult[]>([])
   const router = useRouter()
   const { formatAmount } = useCurrency()
 
@@ -39,7 +49,7 @@ export function SearchDialog({ open, onOpenChange }) {
     }
   }, [searchQuery])
 
-  const handleResultClick = (result) => {
+  const handleResultClick = (result: SearchResult) => {
     if (result.type === "category") {
       router.push(`/category/${result.id}`)
     } else if (result.type === "app") {

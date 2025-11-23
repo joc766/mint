@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AddExpenseDialog } from "@/components/add-expense-dialog"
@@ -23,7 +23,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   const [activeFilter, setActiveFilter] = useState("all")
   const [filterType, setFilterType] = useState("category")
   const { formatAmount } = useCurrency()
-  const router = useRouter()
+  const _router = useRouter()
   const { transactions, isLoading, fetchTransactions } = useTransactions()
   const { categories } = useCategories()
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
@@ -52,6 +52,28 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth])
+
+  const getCategoryName = useCallback((categoryId: number | null | undefined, subcategoryId: number | null | undefined): string => {
+    if (subcategoryId) {
+      const subcategory = subcategories.find((s) => {
+        const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+        return sId === subcategoryId
+      })
+      if (subcategory) {
+        const categoryIdFromSub = typeof subcategory.category_id === "string" 
+          ? Number.parseInt(subcategory.category_id, 10) 
+          : subcategory.category_id
+        const category = categories.find((cat) => cat.id === categoryIdFromSub)
+        return category ? `${category.name} - ${subcategory.name}` : subcategory.name
+      }
+      return `Subcategory ${subcategoryId}`
+    }
+    if (categoryId) {
+      const category = categories.find((cat) => cat.id === categoryId)
+      return category ? category.name : `Category ${categoryId}`
+    }
+    return "Uncategorized"
+  }, [categories, subcategories])
 
   useEffect(() => {
     // Filter transactions for the selected month
@@ -83,23 +105,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
         setFilteredExpenses(merchantFiltered)
       }
     }
-  }, [transactions, selectedMonth, activeFilter, filterType])
-
-  const getCategoryName = (categoryId: number | null | undefined, subcategoryId: number | null | undefined): string => {
-    if (subcategoryId) {
-      const subcategory = subcategories.find((s) => Number.parseInt(s.id) === subcategoryId)
-      if (subcategory) {
-        const category = categories.find((cat) => cat.id === subcategory.category_id)
-        return category ? `${category.name} - ${subcategory.name}` : subcategory.name
-      }
-      return `Subcategory ${subcategoryId}`
-    }
-    if (categoryId) {
-      const category = categories.find((cat) => Number.parseInt(cat.id) === categoryId)
-      return category ? category.name : `Category ${categoryId}`
-    }
-    return "Uncategorized"
-  }
+  }, [transactions, selectedMonth, activeFilter, filterType, getCategoryName])
 
   const categoriesFromTransactions = Array.from(
     new Set(
@@ -144,6 +150,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                     </TabsTrigger>
                   ))
                 : Array.from(new Set(transactions.map((t) => t.merchant_name)))
+                    .filter((merchant): merchant is string => !!merchant)
                     .slice(0, 5)
                     .map((merchant) => (
                       <TabsTrigger key={merchant} value={merchant} className="px-4">
@@ -201,7 +208,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                     )}
                   </div>
                 </div>
-                <div className="font-medium">{formatAmount(expense.amount)}</div>
+                <div className="font-medium">{formatAmount(Number(expense.amount))}</div>
               </div>
             ))}
           </div>

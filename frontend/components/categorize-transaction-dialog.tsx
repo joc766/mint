@@ -48,9 +48,12 @@ export function CategorizeTransactionDialog({
         const fetchSubcategoryInfo = async () => {
           try {
             const { data: allSubcategories } = await apiClient.get<SubcategoryResponse[]>("/subcategories/")
-            const subcategory = allSubcategories?.find((s) => Number.parseInt(s.id) === transaction.custom_subcategory_id)
+            const subcategory = allSubcategories?.find((s) => {
+              const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+              return sId === transaction.custom_subcategory_id
+            })
             if (subcategory) {
-              setSelectedCategoryId(subcategory.category_id)
+              setSelectedCategoryId(String(subcategory.category_id))
               setSelectedSubcategoryId(String(transaction.custom_subcategory_id))
             }
           } catch (err) {
@@ -109,7 +112,9 @@ export function CategorizeTransactionDialog({
       const subcategory = subcategories.find((s) => s.id === selectedSubcategoryId)
       if (subcategory) {
         custom_subcategory_id = Number.parseInt(selectedSubcategoryId)
-        custom_category_id = Number.parseInt(subcategory.category_id)
+        custom_category_id = typeof subcategory.category_id === "string" 
+          ? Number.parseInt(subcategory.category_id, 10) 
+          : subcategory.category_id
       }
     } else if (selectedCategoryId) {
       // If only category is selected (no subcategory), set category_id and null subcategory_id
@@ -174,7 +179,7 @@ export function CategorizeTransactionDialog({
         <DialogHeader>
           <DialogTitle>Categorize Transaction</DialogTitle>
           <DialogDescription>
-            {transaction.merchant_name || transaction.name} - ${Math.abs(transaction.amount).toFixed(2)}
+            {transaction.merchant_name || transaction.name} - ${Math.abs(Number(transaction.amount)).toFixed(2)}
           </DialogDescription>
         </DialogHeader>
 
@@ -209,7 +214,7 @@ export function CategorizeTransactionDialog({
                         <span className="text-muted-foreground">Clear selection</span>
                       </SelectItem>
                       {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
+                        <SelectItem key={category.id} value={String(category.id)}>
                           {category.icon && <span className="mr-2">{category.icon}</span>}
                           {category.name}
                         </SelectItem>
@@ -233,7 +238,7 @@ export function CategorizeTransactionDialog({
                     if (value) {
                       const selectedSubcategory = subcategories.find((s) => s.id === value)
                       if (selectedSubcategory) {
-                        setSelectedCategoryId(selectedSubcategory.category_id)
+                        setSelectedCategoryId(String(selectedSubcategory.category_id))
                       }
                     }
                   }
@@ -265,7 +270,7 @@ export function CategorizeTransactionDialog({
                         <span className="text-muted-foreground">Clear selection</span>
                       </SelectItem>
                       {subcategories.map((subcategory) => (
-                        <SelectItem key={subcategory.id} value={subcategory.id}>
+                        <SelectItem key={subcategory.id} value={String(subcategory.id)}>
                           {subcategory.icon && <span className="mr-2">{subcategory.icon}</span>}
                           {subcategory.name}
                         </SelectItem>

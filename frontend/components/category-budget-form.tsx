@@ -24,7 +24,15 @@ const formSchema = z.object({
   }),
 })
 
-export function CategoryBudgetForm({ category, categoryId, currentBudget, onSave, children }) {
+interface CategoryBudgetFormProps {
+  category: string
+  categoryId: string
+  currentBudget: number
+  onSave: (categoryId: string, budget: number) => void
+  children: React.ReactNode
+}
+
+export function CategoryBudgetForm({ category, categoryId, currentBudget, onSave, children }: CategoryBudgetFormProps) {
   const { currency } = useCurrency()
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -33,7 +41,7 @@ export function CategoryBudgetForm({ category, categoryId, currentBudget, onSave
     },
   })
 
-  function onSubmit(values) {
+  function onSubmit(values: z.infer<typeof formSchema>) {
     onSave(categoryId, values.budget)
   }
 

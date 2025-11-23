@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
   const { currency, setCurrency, position, setPosition } = useCurrency()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const { budgetSettings, updateBudgetSettings, fetchBudgetSettings, fetchMonthlyBudget, updateMonthlyBudget } = useBudget()
+  const { budgetSettings, updateBudgetSettings, fetchMonthlyBudget, updateMonthlyBudget } = useBudget()
   const { toast } = useToast()
   const [monthlyIncome, setMonthlyIncome] = useState("")
   const [monthlySavingsGoal, setMonthlySavingsGoal] = useState("")
@@ -147,7 +147,7 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Budget Settings</CardTitle>
-                <CardDescription>Manage your monthly income and savings goal. Changes will update your current month's budget.</CardDescription>
+                <CardDescription>Manage your monthly income and savings goal. Changes will update your current month&apos;s budget.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -198,7 +198,7 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Budget Management</CardTitle>
-                <CardDescription>Edit your current month's budget distribution.</CardDescription>
+                <CardDescription>Edit your current month&apos;s budget distribution.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div>
@@ -223,7 +223,7 @@ export default function SettingsPage() {
                     <Label htmlFor="budget-alerts" className="font-medium">
                       Budget Alerts
                     </Label>
-                    <p className="text-sm text-muted-foreground">Get notified when you're close to your budget limit</p>
+                    <p className="text-sm text-muted-foreground">Get notified when you&apos;re close to your budget limit</p>
                   </div>
                   <Switch id="budget-alerts" defaultChecked />
                 </div>

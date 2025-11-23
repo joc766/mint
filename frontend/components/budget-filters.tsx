@@ -5,8 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Filter, X } from "lucide-react"
 
-export function BudgetFilters({ onFilterChange }) {
-  const [isOpen, setIsOpen] = useState(false)
+export interface FilterState {
+  showOverspent: boolean
+  showUnderBudget: boolean
+  sortBy: string
+}
+
+export function BudgetFilters({ onFilterChange }: { onFilterChange: (filters: FilterState) => void }) {
+  const [_isOpen, setIsOpen] = useState(false)
   const [filters, setFilters] = useState({
     showOverspent: false,
     showUnderBudget: false,
@@ -14,7 +20,7 @@ export function BudgetFilters({ onFilterChange }) {
   })
   const [activeFilters, setActiveFilters] = useState(0)
 
-  const handleFilterChange = (key, value) => {
+  const handleFilterChange = (key: keyof FilterState, value: string | boolean) => {
     const newFilters = { ...filters, [key]: value }
     setFilters(newFilters)
 

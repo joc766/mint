@@ -207,3 +207,6 @@ Thumbs.db
 
 # Application specific
 # Add any application-specific files or directories here
+
+# Docker Compose overrides (local development customizations)
+docker-compose.override.yml
