@@ -91,17 +91,22 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy package files
+# Copy package files first for better layer caching
 COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies
 RUN pnpm install
 
-# Copy the rest of the application
-COPY . .
+# Note: We intentionally don't copy source files here in dev mode
+# They will be mounted via volumes for hot reload
+# We only create empty directories for build artifacts
 
 EXPOSE 3000
 
 ENV NODE_ENV=development
+# Enable file watching in Docker environment
+ENV WATCHPACK_POLLING=true
+ENV CHOKIDAR_USEPOLLING=true
 
+# Use --turbo for faster dev server with better file watching
 CMD ["pnpm", "dev"]

@@ -39,6 +39,18 @@ const nextConfig = {
   env: {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
   },
+  
+  // Webpack configuration for better Docker hot reload
+  webpack: (config, { dev, isServer }) => {
+    // Enable polling for file changes in Docker environments
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000, // Check for changes every second
+        aggregateTimeout: 300, // Delay before rebuilding
+      }
+    }
+    return config
+  },
 }
 
 export default nextConfig
