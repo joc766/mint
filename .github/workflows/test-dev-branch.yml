@@ -1,0 +1,168 @@
+name: Test Development Branch - Both Build Modes
+
+on:
+  push:
+    branches:
+      - dev
+      - 'refactor/**'
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  test-development-mode:
+    name: Test Development Build Mode
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up environment variables
+        run: |
+          echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
+          echo "PLAID_CLIENT_ID=test-client-id" >> $GITHUB_ENV
+          echo "PLAID_SECRET=test-secret" >> $GITHUB_ENV
+          echo "PLAID_ENV=sandbox" >> $GITHUB_ENV
+      
+      - name: Create .env file for docker-compose
+        run: |
+          cat << EOF > .env
+          SECRET_KEY=test-secret-key-for-ci
+          PLAID_CLIENT_ID=test-client-id
+          PLAID_SECRET=test-secret
+          PLAID_ENV=sandbox
+          EOF
+      
+      - name: Build and start services (Development Mode)
+        run: |
+          docker-compose up -d --build
+          echo "Services started in development mode"
+      
+      - name: Wait for services to be healthy
+        run: |
+          chmod +x scripts/ci/wait-for-services.sh
+          ./scripts/ci/wait-for-services.sh
+      
+      - name: Test API root endpoint
+        run: |
+          response=$(curl -s http://localhost:8000/)
+          echo "API Response: $response"
+          if [[ $response != *"Plaid Transaction Categorization API"* ]]; then
+            echo "API root endpoint test failed"
+            exit 1
+          fi
+          echo "✓ API root endpoint test passed"
+      
+      - name: Test frontend accessibility
+        run: |
+          # Test that frontend returns HTML
+          response=$(curl -s http://localhost:3000/)
+          if [[ ! $response =~ "<!DOCTYPE html>" ]] && [[ ! $response =~ "<html" ]]; then
+            echo "Frontend does not return valid HTML"
+            exit 1
+          fi
+          echo "✓ Frontend returns valid HTML"
+      
+      - name: Show service logs on failure (Development)
+        if: failure()
+        run: |
+          echo "=== Database Logs ==="
+          docker-compose logs db
+          echo "=== API Logs ==="
+          docker-compose logs api
+          echo "=== Frontend Logs ==="
+          docker-compose logs frontend
+      
+      - name: Cleanup development containers
+        if: always()
+        run: |
+          docker-compose down -v
+
+  test-production-mode:
+    name: Test Production Build Mode
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up environment variables
+        run: |
+          echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
+          echo "PLAID_CLIENT_ID=test-client-id" >> $GITHUB_ENV
+          echo "PLAID_SECRET=test-secret" >> $GITHUB_ENV
+          echo "PLAID_ENV=sandbox" >> $GITHUB_ENV
+          echo "BUILD_MODE=production" >> $GITHUB_ENV
+          echo "RESTART_POLICY=no" >> $GITHUB_ENV
+      
+      - name: Create .env file for docker-compose
+        run: |
+          cat << EOF > .env
+          SECRET_KEY=test-secret-key-for-ci
+          PLAID_CLIENT_ID=test-client-id
+          PLAID_SECRET=test-secret
+          PLAID_ENV=sandbox
+          BUILD_MODE=production
+          RESTART_POLICY=no
+          EOF
+      
+      - name: Build and start services (Production Mode)
+        run: |
+          BUILD_MODE=production RESTART_POLICY=no docker-compose up -d --build
+          echo "Services started in production mode"
+      
+      - name: Wait for services to be healthy
+        run: |
+          chmod +x scripts/ci/wait-for-services.sh
+          ./scripts/ci/wait-for-services.sh
+      
+      - name: Test API root endpoint
+        run: |
+          response=$(curl -s http://localhost:8000/)
+          echo "API Response: $response"
+          if [[ $response != *"Plaid Transaction Categorization API"* ]]; then
+            echo "API root endpoint test failed"
+            exit 1
+          fi
+          echo "✓ API root endpoint test passed"
+      
+      - name: Test frontend accessibility
+        run: |
+          # Test that frontend returns HTML
+          response=$(curl -s http://localhost:3000/)
+          if [[ ! $response =~ "<!DOCTYPE html>" ]] && [[ ! $response =~ "<html" ]]; then
+            echo "Frontend does not return valid HTML"
+            exit 1
+          fi
+          echo "✓ Frontend returns valid HTML"
+      
+      - name: Verify frontend build mode
+        run: |
+          # Check container environment
+          BUILD_CHECK=$(docker-compose exec -T frontend printenv NODE_ENV || echo "not_found")
+          echo "Frontend NODE_ENV: $BUILD_CHECK"
+          if [ "$BUILD_CHECK" != "production" ]; then
+            echo "⚠ Warning: Frontend NODE_ENV is not set to production"
+          else
+            echo "✓ Frontend NODE_ENV correctly set to production"
+          fi
+      
+      - name: Show service logs on failure (Production)
+        if: failure()
+        run: |
+          echo "=== Database Logs ==="
+          docker-compose logs db
+          echo "=== API Logs ==="
+          docker-compose logs api
+          echo "=== Frontend Logs ==="
+          docker-compose logs frontend
+      
+      - name: Cleanup production containers
+        if: always()
+        run: |
+          docker-compose down -v
