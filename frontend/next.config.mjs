@@ -3,6 +3,12 @@ const nextConfig = {
   // Output configuration for Docker production builds
   output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
   
+  // Experimental features for better performance
+  experimental: {
+    // Optimize package imports
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+  },
+  
   // Build optimizations
   eslint: {
     // In production, you may want to enable linting during builds
