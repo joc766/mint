@@ -8,9 +8,9 @@ services:
       target: development
       args:
         BUILD_MODE: developement
-        NEXT_PUBLIC_API_URL: https://api.archane-technologies.net
+        NEXT_PUBLIC_API_URL: https://localhost:8000
     environment:
-        NEXT_PUBLIC_API_URL: https://api.archane-technologies.net
+        NEXT_PUBLIC_API_URL: https://localhost:8000
         # Enable file watching for hot reload in Docker (uncomment for dev mode)
         WATCHPACK_POLLING: "true"
         CHOKIDAR_USEPOLLING: "true"

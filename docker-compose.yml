@@ -65,13 +65,13 @@ services:
     environment:
       - NODE_ENV=${BUILD_MODE:-development}
       # Enable Next.js file watching in Docker
-      - WATCHPACK_POLLING=true
-      - CHOKIDAR_USEPOLLING=true
+      # - WATCHPACK_POLLING=true
+      # - CHOKIDAR_USEPOLLING=true
     stdin_open: true
     tty: true
     restart: ${RESTART_POLICY:-no}
-    # depends_on:
-    #   - api
+    depends_on:
+       - api
     networks:
       - plaid_network
 
