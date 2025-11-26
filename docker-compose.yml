@@ -57,18 +57,21 @@ services:
     ports:
       - "3000:3000"
     # volumes:
-    #   # Volumes are mounted in development, ignored in production (no volumes needed)
-    #   # To use development mode with hot-reloading, uncomment these lines:
-    #   - ./frontend:/app
-    #   - /app/node_modules
-    #   - /app/.next
+      # Mount source code for hot reload (cached for better macOS performance)
+      # - ./frontend:/app:cached
+      # Prevent node_modules and .next from being overwritten by host
+      # - /app/node_modules
+      # - /app/.next
     environment:
       - NODE_ENV=${BUILD_MODE:-development}
+      # Enable Next.js file watching in Docker
+      # - WATCHPACK_POLLING=true
+      # - CHOKIDAR_USEPOLLING=true
     stdin_open: true
     tty: true
     restart: ${RESTART_POLICY:-no}
-    # depends_on:
-    #   - api
+    depends_on:
+       - api
     networks:
       - plaid_network
 

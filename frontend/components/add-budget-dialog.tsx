@@ -63,12 +63,12 @@ export function AddBudgetDialog({ open, onOpenChange, onAddBudget }: AddBudgetDi
   const [_selectedIcon, setSelectedIcon] = useState(icons[0])
   const [_selectedColor, setSelectedColor] = useState(colors[0])
 
-  const form = useForm({
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       icon: icons[0],
-      budget: undefined,
+      budget: 0,
       color: colors[0],
     },
   })
