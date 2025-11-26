@@ -31,7 +31,7 @@ fi
 # If production mode, verify NODE_ENV
 if [ "$BUILD_MODE" == "production" ]; then
   echo "Verifying production build mode..."
-  BUILD_CHECK=$(docker-compose exec -T frontend printenv NODE_ENV 2>/dev/null || echo "not_found")
+  BUILD_CHECK=$(docker compose exec -T frontend printenv NODE_ENV 2>/dev/null || echo "not_found")
   if [ "$BUILD_CHECK" != "production" ]; then
     echo "⚠ Warning: Frontend NODE_ENV is not set to production (found: $BUILD_CHECK)"
   else

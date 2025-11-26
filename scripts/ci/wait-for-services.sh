@@ -6,11 +6,11 @@ set -e
 echo "Waiting for database..."
 SECONDS=0
 MAX_WAIT=120
-until docker-compose exec -T db pg_isready -U plaid_user -d plaid_db >/dev/null 2>&1; do
+until docker compose exec -T db pg_isready -U plaid_user -d plaid_db >/dev/null 2>&1; do
   if [ $SECONDS -gt $MAX_WAIT ]; then
     echo "Database failed to start within ${MAX_WAIT}s"
     echo "Debug: Last pg_isready attempt:"
-    docker-compose exec -T db pg_isready -U plaid_user -d plaid_db || true
+    docker compose exec -T db pg_isready -U plaid_user -d plaid_db || true
     exit 1
   fi
   sleep 2

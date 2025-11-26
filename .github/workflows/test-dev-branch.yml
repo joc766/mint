@@ -28,7 +28,7 @@ jobs:
           echo "PLAID_SECRET=test-secret" >> $GITHUB_ENV
           echo "PLAID_ENV=sandbox" >> $GITHUB_ENV
       
-      - name: Create .env file for docker-compose
+      - name: Create .env file for Docker Compose
         run: |
           cat << EOF > .env
           SECRET_KEY=test-secret-key-for-ci
@@ -39,7 +39,7 @@ jobs:
       
       - name: Build and start services (Development Mode)
         run: |
-          docker-compose up -d --build
+          docker compose up -d --build
           echo "Services started in development mode"
       
       - name: Wait for services to be healthy
@@ -71,16 +71,16 @@ jobs:
         if: failure()
         run: |
           echo "=== Database Logs ==="
-          docker-compose logs db
+          docker compose logs db
           echo "=== API Logs ==="
-          docker-compose logs api
+          docker compose logs api
           echo "=== Frontend Logs ==="
-          docker-compose logs frontend
+          docker compose logs frontend
       
       - name: Cleanup development containers
         if: always()
         run: |
-          docker-compose down -v
+          docker compose down -v
 
   test-production-mode:
     name: Test Production Build Mode
@@ -100,7 +100,7 @@ jobs:
           echo "BUILD_MODE=production" >> $GITHUB_ENV
           echo "RESTART_POLICY=no" >> $GITHUB_ENV
       
-      - name: Create .env file for docker-compose
+      - name: Create .env file for Docker Compose
         run: |
           cat << EOF > .env
           SECRET_KEY=test-secret-key-for-ci
@@ -113,7 +113,7 @@ jobs:
       
       - name: Build and start services (Production Mode)
         run: |
-          BUILD_MODE=production RESTART_POLICY=no docker-compose up -d --build
+          BUILD_MODE=production RESTART_POLICY=no docker compose up -d --build
           echo "Services started in production mode"
       
       - name: Wait for services to be healthy
@@ -144,7 +144,7 @@ jobs:
       - name: Verify frontend build mode
         run: |
           # Check container environment
-          BUILD_CHECK=$(docker-compose exec -T frontend printenv NODE_ENV || echo "not_found")
+          BUILD_CHECK=$(docker compose exec -T frontend printenv NODE_ENV || echo "not_found")
           echo "Frontend NODE_ENV: $BUILD_CHECK"
           if [ "$BUILD_CHECK" != "production" ]; then
             echo "⚠ Warning: Frontend NODE_ENV is not set to production"
@@ -156,13 +156,13 @@ jobs:
         if: failure()
         run: |
           echo "=== Database Logs ==="
-          docker-compose logs db
+          docker compose logs db
           echo "=== API Logs ==="
-          docker-compose logs api
+          docker compose logs api
           echo "=== Frontend Logs ==="
-          docker-compose logs frontend
+          docker compose logs frontend
       
       - name: Cleanup production containers
         if: always()
         run: |
-          docker-compose down -v
+          docker compose down -v
