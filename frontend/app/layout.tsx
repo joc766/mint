@@ -8,6 +8,7 @@ import { AccountsProvider } from "@/contexts/accounts-context"
 import { TransactionsProvider } from "@/contexts/transactions-context"
 import { CategoriesProvider } from "@/contexts/categories-context"
 import { BudgetProvider } from "@/contexts/budget-context"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,7 +28,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <BudgetProvider>
                 <CategoriesProvider>
                   <ThemeProvider>
-                    <CurrencyProvider>{children}</CurrencyProvider>
+                    <CurrencyProvider>
+                      {children}
+                      <Toaster />
+                    </CurrencyProvider>
                   </ThemeProvider>
                 </CategoriesProvider>
               </BudgetProvider>
