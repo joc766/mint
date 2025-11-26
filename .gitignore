@@ -166,7 +166,8 @@ cython_debug/
 .vscode/
 
 # Docker
-docker-compose.override.yml
+# Note: docker-compose.override.yml is NOT ignored because it contains
+# essential development configuration for hot reload and should be committed
 
 # Database
 *.db
@@ -206,6 +207,3 @@ Thumbs.db
 
 # Application specific
 # Add any application-specific files or directories here
-
-# Docker Compose overrides (local development customizations)
-docker-compose.override.yml

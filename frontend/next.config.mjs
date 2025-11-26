@@ -3,6 +3,12 @@ const nextConfig = {
   // Output configuration for Docker production builds
   output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
   
+  // Experimental features for better performance
+  experimental: {
+    // Optimize package imports
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+  },
+  
   // Build optimizations
   eslint: {
     // In production, you may want to enable linting during builds
@@ -32,6 +38,18 @@ const nextConfig = {
   // Environment variables
   env: {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
+  },
+  
+  // Webpack configuration for better Docker hot reload
+  webpack: (config, { dev, isServer }) => {
+    // Enable polling for file changes in Docker environments
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000, // Check for changes every second
+        aggregateTimeout: 300, // Delay before rebuilding
+      }
+    }
+    return config
   },
 }
 

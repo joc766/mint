@@ -237,7 +237,7 @@ BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
 The frontend supports two build modes:
 
 #### Development Mode
-- **Hot reload enabled** - Changes reflect immediately
+- **Hot reload enabled** - Changes reflect immediately (see [HOT_RELOAD.md](./HOT_RELOAD.md))
 - **Source code mounted** - Edit files locally and see changes
 - **Fast startup** - No build step required
 - **Best for**: Local development and debugging
@@ -246,6 +246,20 @@ The frontend supports two build modes:
 ```bash
 docker-compose up frontend
 ```
+
+**Testing hot reload:**
+```bash
+# Start the frontend
+docker-compose up -d frontend
+
+# Watch the logs
+docker-compose logs -f frontend
+
+# Make a change to any file in frontend/app/
+# You should see compilation messages and the browser should auto-refresh
+```
+
+For detailed information on hot reload configuration and troubleshooting, see [HOT_RELOAD.md](./HOT_RELOAD.md).
 
 #### Production Mode
 - **Optimized build** - Code is minified and optimized
