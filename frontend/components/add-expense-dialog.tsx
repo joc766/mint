@@ -37,13 +37,21 @@ const formSchema = z.object({
   notes: z.string().optional(),
 })
 
-export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function AddExpenseDialog({ 
+  open, 
+  onOpenChange,
+  defaultDate
+}: { 
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  defaultDate?: Date
+}) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       amount: undefined,
       name: "",
-      date: new Date(),
+      date: defaultDate || new Date(),
       merchant_name: "",
       category_id: "",
       subcategory_id: "",
@@ -85,6 +93,14 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryId])
+
+  // Update date when dialog opens with a new defaultDate
+  useEffect(() => {
+    if (open && defaultDate) {
+      form.setValue("date", defaultDate)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultDate])
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     // Determine category_id and subcategory_id based on selection

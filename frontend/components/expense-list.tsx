@@ -226,7 +226,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
           </div>
         )}
       </CardContent>
-      <AddExpenseDialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen} />
+      <AddExpenseDialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen} defaultDate={selectedMonth} />
       <CategorizeTransactionDialog
         open={isCategorizeOpen}
         onOpenChange={setIsCategorizeOpen}
