@@ -62,8 +62,7 @@ services:
       # Prevent node_modules and .next from being overwritten by host
       # - /app/node_modules
       # - /app/.next
-    environment:
-      - NODE_ENV=${BUILD_MODE:-development}
+    # environment:
       # Enable Next.js file watching in Docker
       # - WATCHPACK_POLLING=true
       # - CHOKIDAR_USEPOLLING=true
