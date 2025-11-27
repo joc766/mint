@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AlertTriangle } from "lucide-react"
@@ -75,8 +76,12 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
 
   // Fetch transactions for selected month
   useEffect(() => {
-    const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString().split('T')[0]
-    const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString().split('T')[0]
+    // Use local date formatting to avoid timezone issues
+    const year = selectedMonth.getFullYear()
+    const month = selectedMonth.getMonth() + 1 // JS months are 0-indexed
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month, 0).getDate() // Get last day of month
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     fetchTransactions({ start_date: startDate, end_date: endDate })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth])
@@ -105,13 +110,11 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
     setIsLoading(true)
 
     // Filter transactions for selected month
+    // Extract year-month from ISO date string to avoid timezone issues
     const monthTransactions = transactions.filter((t) => {
-      const date = new Date(t.date)
-      return (
-        date.getMonth() === selectedMonth.getMonth() &&
-        date.getFullYear() === selectedMonth.getFullYear() &&
-        Number(t.amount) < 0 // Only expenses
-      )
+      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+      const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
+      return dateStr === selectedYearMonth && Number(t.amount) < 0 // Only expenses
     })
 
     // Calculate spending by category/subcategory with proper number conversion
@@ -338,13 +341,11 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
 
   // Calculate total budget and spending summary with proper number conversion
   const totalBudget = budgetTemplate?.total_budget ? Number(budgetTemplate.total_budget) || 0 : 0
+  // Extract year-month from ISO date string to avoid timezone issues
   const monthTransactions = transactions.filter((t) => {
-    const date = new Date(t.date)
-    return (
-      date.getMonth() === selectedMonth.getMonth() &&
-      date.getFullYear() === selectedMonth.getFullYear() &&
-      Number(t.amount) < 0 // Only expenses
-    )
+    const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+    const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
+    return dateStr === selectedYearMonth && Number(t.amount) < 0 // Only expenses
   })
   const totalSpent = monthTransactions.reduce((sum, t) => {
     const amount = Math.abs(Number(t.amount) || 0)
@@ -367,6 +368,17 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
         <h2 className="text-xl font-semibold">
           Budget for {selectedMonth.toLocaleString("default", { month: "long", year: "numeric" })}
         </h2>
+        <Button 
+          onClick={() => {
+            const year = selectedMonth.getFullYear()
+            const month = selectedMonth.getMonth() + 1
+            router.push(`/budget?year=${year}&month=${month}`)
+          }} 
+          variant="outline"
+          className="border-emerald-500 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+        >
+          Edit Budget
+        </Button>
       </div>
 
       {hasBudgetForMonth && (

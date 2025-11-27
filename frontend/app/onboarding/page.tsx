@@ -137,8 +137,11 @@ export default function OnboardingPage() {
 
           {step === 2 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Set Your Budget</h3>
-              <MonthlyBudgetSetup onComplete={handleComplete} />
+              <h3 className="text-lg font-medium">Set Your Default Budget</h3>
+              <p className="text-sm text-muted-foreground">
+                This will be your default budget template. You can create specific monthly budgets later that override these defaults.
+              </p>
+              <MonthlyBudgetSetup onComplete={handleComplete} isDefault={true} />
             </div>
           )}
         </CardContent>

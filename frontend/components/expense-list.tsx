@@ -43,8 +43,12 @@ export function ExpenseList({ selectedMonth = new Date() }) {
 
   useEffect(() => {
     // Fetch transactions for the selected month
-    const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString().split('T')[0]
-    const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString().split('T')[0]
+    // Use local date formatting to avoid timezone issues
+    const year = selectedMonth.getFullYear()
+    const month = selectedMonth.getMonth() + 1 // JS months are 0-indexed
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month, 0).getDate() // Get last day of month
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     
     fetchTransactions({
       start_date: startDate,
@@ -77,11 +81,13 @@ export function ExpenseList({ selectedMonth = new Date() }) {
 
   useEffect(() => {
     // Filter transactions for the selected month
+    // Note: We already fetched filtered transactions from API, but need to ensure
+    // we're comparing dates correctly without timezone conversion issues
     const monthTransactions = transactions.filter((expense) => {
-      const expenseDate = new Date(expense.date)
-      return (
-        expenseDate.getMonth() === selectedMonth.getMonth() && expenseDate.getFullYear() === selectedMonth.getFullYear()
-      )
+      // Extract year-month from ISO date string to avoid timezone issues
+      const dateStr = expense.date.toString().substring(0, 7) // "YYYY-MM"
+      const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
+      return dateStr === selectedYearMonth
     })
 
     // Sort by date (newest first)

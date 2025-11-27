@@ -134,8 +134,12 @@ export default function CategoryPage() {
     if (fetchingRef.current === fetchKey) return // Already fetching
     
     const loadTransactions = async () => {
-      const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString().split('T')[0]
-      const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString().split('T')[0]
+      // Use local date formatting to avoid timezone issues
+      const year = selectedMonth.getFullYear()
+      const month = selectedMonth.getMonth() + 1 // JS months are 0-indexed
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+      const lastDay = new Date(year, month, 0).getDate() // Get last day of month
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
       
       fetchingRef.current = fetchKey
       try {
@@ -319,7 +323,7 @@ export default function CategoryPage() {
               )}
             </div>
           </div>
-          <MonthSelector onMonthChange={setSelectedMonth} />
+          <MonthSelector selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} />
         </div>
 
         {fetchError && (

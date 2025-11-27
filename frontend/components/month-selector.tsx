@@ -1,13 +1,19 @@
 "use client"
 
-import { useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 
-export function MonthSelector({ onMonthChange }: { onMonthChange: (date: Date) => void }) {
-  const [date, setDate] = useState(new Date())
+export function MonthSelector({ 
+  selectedMonth, 
+  onMonthChange 
+}: { 
+  selectedMonth?: Date
+  onMonthChange: (date: Date) => void 
+}) {
+  // Use the passed selectedMonth, or default to current date
+  const date = selectedMonth || new Date()
 
   const monthNames = [
     "January",
@@ -29,14 +35,12 @@ export function MonthSelector({ onMonthChange }: { onMonthChange: (date: Date) =
   const goToPreviousMonth = () => {
     const newDate = new Date(date)
     newDate.setMonth(newDate.getMonth() - 1)
-    setDate(newDate)
     onMonthChange(newDate)
   }
 
   const goToNextMonth = () => {
     const newDate = new Date(date)
     newDate.setMonth(newDate.getMonth() + 1)
-    setDate(newDate)
     onMonthChange(newDate)
   }
 
@@ -44,7 +48,6 @@ export function MonthSelector({ onMonthChange }: { onMonthChange: (date: Date) =
     if (!newDate) return
     // Set day to 1 to just select the month
     const selectedDate = new Date(newDate.getFullYear(), newDate.getMonth(), 1)
-    setDate(selectedDate)
     onMonthChange(selectedDate)
   }
 

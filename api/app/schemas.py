@@ -218,8 +218,9 @@ class BudgetTemplateEntryResponse(BudgetTemplateEntryBase):
 class BudgetTemplateResponse(BaseModel):
     id: int
     user_id: int
-    month: int
-    year: int
+    month: Optional[int] = None  # NULL for default budget
+    year: Optional[int] = None   # NULL for default budget
+    is_default: bool
     total_budget: Decimal
     entries: List[BudgetTemplateEntryResponse] = []
     created_at: dt_type
@@ -229,8 +230,9 @@ class BudgetTemplateResponse(BaseModel):
         from_attributes = True
 
 class BudgetTemplateCreate(BaseModel):
-    month: int
-    year: int
+    month: Optional[int] = None
+    year: Optional[int] = None
+    is_default: Optional[bool] = False
     total_budget: Decimal
     entries: List[BudgetTemplateEntryCreate]
 

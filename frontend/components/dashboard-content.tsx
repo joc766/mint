@@ -40,8 +40,14 @@ export function DashboardContent() {
     const fetchReportTransactions = async () => {
       const now = new Date()
       const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
-      const startDate = sixMonthsAgo.toISOString().split("T")[0]
-      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0]
+      // Use local date formatting to avoid timezone issues
+      const startYear = sixMonthsAgo.getFullYear()
+      const startMonth = sixMonthsAgo.getMonth() + 1
+      const startDate = `${startYear}-${String(startMonth).padStart(2, '0')}-01`
+      const endYear = now.getFullYear()
+      const endMonth = now.getMonth() + 1
+      const lastDay = new Date(endYear, endMonth, 0).getDate()
+      const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
       try {
         await fetchTransactions({
@@ -70,12 +76,10 @@ export function DashboardContent() {
       const monthKey = date.toLocaleString("default", { month: "short" })
 
       const monthTransactions = allTransactions.filter((t) => {
-        const tDate = new Date(t.date)
-        return (
-          tDate.getMonth() === date.getMonth() &&
-          tDate.getFullYear() === date.getFullYear() &&
-          Number(t.amount) < 0
-        )
+        // Extract year-month from ISO date string to avoid timezone issues
+        const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+        const monthYearStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        return dateStr === monthYearStr && Number(t.amount) < 0
       })
 
       const total = monthTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0)
@@ -151,21 +155,17 @@ export function DashboardContent() {
     const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear
 
     const currentTransactions = allTransactions.filter((t) => {
-      const tDate = new Date(t.date)
-      return (
-        tDate.getMonth() === currentMonth &&
-        tDate.getFullYear() === currentYear &&
-        Number(t.amount) < 0
-      )
+      // Extract year-month from ISO date string to avoid timezone issues
+      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+      const currentYearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
+      return dateStr === currentYearMonth && Number(t.amount) < 0
     })
 
     const previousTransactions = allTransactions.filter((t) => {
-      const tDate = new Date(t.date)
-      return (
-        tDate.getMonth() === prevMonth &&
-        tDate.getFullYear() === prevYear &&
-        Number(t.amount) < 0
-      )
+      // Extract year-month from ISO date string to avoid timezone issues
+      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+      const prevYearMonth = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`
+      return dateStr === prevYearMonth && Number(t.amount) < 0
     })
 
     const currentTotal = currentTransactions.reduce(
@@ -189,12 +189,10 @@ export function DashboardContent() {
   // Calculate expense insights
   const expenseInsights = useMemo(() => {
     const monthTransactions = allTransactions.filter((t) => {
-      const tDate = new Date(t.date)
-      return (
-        tDate.getMonth() === selectedMonth.getMonth() &&
-        tDate.getFullYear() === selectedMonth.getFullYear() &&
-        Number(t.amount) < 0
-      )
+      // Extract year-month from ISO date string to avoid timezone issues
+      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+      const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
+      return dateStr === selectedYearMonth && Number(t.amount) < 0
     })
 
     // Top spending day
@@ -226,12 +224,10 @@ export function DashboardContent() {
     const prevYear =
       selectedMonth.getMonth() === 0 ? selectedMonth.getFullYear() - 1 : selectedMonth.getFullYear()
     const prevMonthTransactions = allTransactions.filter((t) => {
-      const tDate = new Date(t.date)
-      return (
-        tDate.getMonth() === prevMonth &&
-        tDate.getFullYear() === prevYear &&
-        Number(t.amount) < 0
-      )
+      // Extract year-month from ISO date string to avoid timezone issues
+      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+      const prevYearMonth = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`
+      return dateStr === prevYearMonth && Number(t.amount) < 0
     })
     const prevDaysInMonth = new Date(prevYear, prevMonth + 1, 0).getDate()
     const prevTotalSpent = prevMonthTransactions.reduce(
@@ -253,7 +249,7 @@ export function DashboardContent() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <MonthSelector onMonthChange={setSelectedMonth} />
+        <MonthSelector selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} />
       </div>
 
       <Tabs defaultValue="expenses" className="space-y-4">
