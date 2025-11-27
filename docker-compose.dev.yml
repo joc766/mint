@@ -1,13 +1,19 @@
-# Docker Compose override file for local development
-# This file is automatically loaded by docker-compose and provides development-specific configuration
-# Usage: docker-compose up (automatically uses this override file)
+# Docker Compose development configuration
+# This file provides development-specific configuration with hot reload and volume mounting
+# 
+# Usage:
+#   Development mode: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   Production mode:  BUILD_MODE=production docker-compose up --build
+#
+# Note: This file is NOT automatically loaded (previously named docker-compose.override.yml)
+#       You must explicitly include it with -f flag for development mode
 
 services:
   frontend:
     build:
       target: development
       args:
-        BUILD_MODE: developement
+        BUILD_MODE: development
         NEXT_PUBLIC_API_URL: http://localhost:8000
     environment:
         NEXT_PUBLIC_API_URL: http://localhost:8000
