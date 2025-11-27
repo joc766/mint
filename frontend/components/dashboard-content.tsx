@@ -249,7 +249,7 @@ export function DashboardContent() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <MonthSelector selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} />
+        <MonthSelector selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} disableCalendar={true} />
       </div>
 
       <Tabs defaultValue="expenses" className="space-y-4">

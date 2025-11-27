@@ -7,10 +7,12 @@ import { Calendar } from "@/components/ui/calendar"
 
 export function MonthSelector({ 
   selectedMonth, 
-  onMonthChange 
+  onMonthChange,
+  disableCalendar = false
 }: { 
   selectedMonth?: Date
-  onMonthChange: (date: Date) => void 
+  onMonthChange: (date: Date) => void
+  disableCalendar?: boolean
 }) {
   // Use the passed selectedMonth, or default to current date
   const date = selectedMonth || new Date()
@@ -57,25 +59,31 @@ export function MonthSelector({
         <ChevronLeft className="h-4 w-4" />
       </Button>
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className="min-w-[180px]">
-            {currentMonthYear}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0">
-          <Calendar
-            mode="single"
-            selected={date as Date}
-            onSelect={handleCalendarSelect as (date: Date | undefined) => void}
-            initialFocus
-            showOutsideDays={false}
-            fromYear={2020}
-            toYear={2030}
-            defaultMonth={date}
-          />
-        </PopoverContent>
-      </Popover>
+      {disableCalendar ? (
+        <div className="min-w-[180px] h-10 px-4 py-2 border border-input bg-background rounded-md flex items-center justify-center text-sm font-medium">
+          {currentMonthYear}
+        </div>
+      ) : (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="min-w-[180px]">
+              {currentMonthYear}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={date as Date}
+              onSelect={handleCalendarSelect as (date: Date | undefined) => void}
+              initialFocus
+              showOutsideDays={false}
+              fromYear={2020}
+              toYear={2030}
+              defaultMonth={date}
+            />
+          </PopoverContent>
+        </Popover>
+      )}
 
       <Button
         variant="outline"
