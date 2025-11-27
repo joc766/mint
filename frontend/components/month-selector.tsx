@@ -66,18 +66,13 @@ export function MonthSelector({
         <PopoverContent className="w-auto p-0">
           <Calendar
             mode="single"
-            selected={date}
-            onSelect={handleCalendarSelect}
+            selected={date as Date}
+            onSelect={handleCalendarSelect as (date: Date | undefined) => void}
             initialFocus
-            // Show only month and year view
             showOutsideDays={false}
-            captionLayout="dropdown-buttons"
             fromYear={2020}
             toYear={2030}
             defaultMonth={date}
-            fixedWeeks
-            // Force type to avoid inference issues
-            {...({} as any)}
           />
         </PopoverContent>
       </Popover>

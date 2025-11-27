@@ -51,7 +51,7 @@ export function BudgetCreatedDialog({ open, onOpenChange, year, month }: BudgetC
               created from your default budget template.
             </p>
             <p>
-              Would you like to edit this month's budget now, or continue with the default allocations?
+              Would you like to edit this month&apos;s budget now, or continue with the default allocations?
             </p>
           </DialogDescription>
         </DialogHeader>

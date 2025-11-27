@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { MonthSelector } from "@/components/month-selector"
@@ -49,7 +49,7 @@ const EXPENSE_EMOJIS = [
   "🎁", "🎂", "🎈", "🎉", "🎊", "🎀", "🎃", "🎄", "🎆", "🎇",
 ]
 
-export default function BudgetPage() {
+function BudgetPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
@@ -76,7 +76,6 @@ export default function BudgetPage() {
   const [entryErrors, setEntryErrors] = useState<Record<number, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
-  const [isCreateFromDefaultDialogOpen, setIsCreateFromDefaultDialogOpen] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
 
   // Category/Subcategory creation states
@@ -442,7 +441,6 @@ export default function BudgetPage() {
       })
     }
 
-    setIsCreateFromDefaultDialogOpen(false)
     setIsResetting(false)
   }
 
@@ -1811,5 +1809,20 @@ export default function BudgetPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function BudgetPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col bg-background">
+        <DashboardHeader />
+        <main className="flex-1 container mx-auto px-4 py-8">
+          <div className="text-center py-12">Loading budget...</div>
+        </main>
+      </div>
+    }>
+      <BudgetPageContent />
+    </Suspense>
   )
 }
