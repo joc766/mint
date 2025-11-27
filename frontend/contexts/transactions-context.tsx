@@ -4,7 +4,7 @@ import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/contexts/auth-context"
-import type { TransactionResponse, TransactionCreate, TransactionUpdate } from "@/lib/types"
+import type { TransactionResponse, TransactionCreate, TransactionCreateResponse, TransactionUpdate } from "@/lib/types"
 
 interface TransactionsContextType {
   transactions: TransactionResponse[]
@@ -17,7 +17,7 @@ interface TransactionsContextType {
     category_id?: number
     subcategory_id?: number
   }) => Promise<void>
-  createTransaction: (transaction: TransactionCreate) => Promise<TransactionResponse | null>
+  createTransaction: (transaction: TransactionCreate) => Promise<TransactionCreateResponse | null>
   updateTransaction: (transactionId: number, update: TransactionUpdate) => Promise<TransactionResponse | null>
   deleteTransaction: (transactionId: number) => Promise<boolean>
 }
@@ -68,7 +68,7 @@ export function TransactionsProvider({ children }: { children: React.ReactNode }
   }, [isAuthenticated])
 
   const createTransaction = async (transaction: TransactionCreate) => {
-    const { data, error: apiError } = await apiClient.post<TransactionResponse>("/transactions/", transaction)
+    const { data, error: apiError } = await apiClient.post<TransactionCreateResponse>("/transactions/", transaction)
 
     if (apiError) {
       setError(apiError)
@@ -76,7 +76,7 @@ export function TransactionsProvider({ children }: { children: React.ReactNode }
     }
 
     setTransactions([...transactions, data as TransactionResponse])
-    return data as TransactionResponse
+    return data as TransactionCreateResponse
   }
 
   const updateTransaction = async (transactionId: number, update: TransactionUpdate) => {

@@ -19,7 +19,7 @@ from api.database import get_db, engine
 from api.models import User, Account, Transaction, Category, Subcategory, UserBudgetSettings, BudgetTemplate, BudgetTemplateEntry
 from api.schemas import (
     UserCreate, UserResponse, AccountCreate, AccountResponse, 
-    TransactionResponse, TransactionCreate, CategoryCreate, CategoryResponse,
+    TransactionResponse, TransactionCreate, TransactionCreateResponse, CategoryCreate, CategoryResponse,
     SubcategoryCreate, SubcategoryResponse,
     TransactionUpdate, LinkTokenCreateRequest, LinkTokenCreateResponse, ExchangeTokenRequest, ExchangeTokenResponse,
     UserBudgetSettingsCreate, UserBudgetSettingsUpdate, UserBudgetSettingsResponse,
@@ -449,7 +449,7 @@ def auto_create_monthly_budget_from_default(db: Session, user_id: int, year: int
     db.refresh(new_monthly_budget)
     return new_monthly_budget
 
-@app.post("/transactions/", response_model=TransactionResponse)
+@app.post("/transactions/", response_model=TransactionCreateResponse)
 def create_transaction(
     transaction: TransactionCreate,
     current_user: User = Depends(get_current_user),
@@ -494,16 +494,31 @@ def create_transaction(
     db.refresh(db_transaction)
     
     # Auto-create monthly budget from default if this is the first transaction of the month
+    budget_created = False
+    budget_year = None
+    budget_month = None
+    
     if transaction.date:
         trans_date = transaction.date if isinstance(transaction.date, datetime) else datetime.strptime(str(transaction.date), "%Y-%m-%d")
-        auto_create_monthly_budget_from_default(
+        created_budget = auto_create_monthly_budget_from_default(
             db=db,
             user_id=current_user.id,
             year=trans_date.year,
             month=trans_date.month
         )
+        if created_budget:
+            budget_created = True
+            budget_year = trans_date.year
+            budget_month = trans_date.month
     
-    return db_transaction
+    # Return the transaction with budget creation info added
+    # We use model_validate with from_attributes to properly convert the SQLAlchemy model
+    return TransactionCreateResponse(
+        **TransactionResponse.model_validate(db_transaction).model_dump(),
+        budget_created=budget_created,
+        budget_year=budget_year,
+        budget_month=budget_month
+    )
 
 @app.put("/transactions/{transaction_id}", response_model=TransactionResponse)
 def update_transaction(

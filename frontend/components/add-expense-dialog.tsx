@@ -24,6 +24,7 @@ import { useTransactions } from "@/contexts/transactions-context"
 import { useCategories } from "@/contexts/categories-context"
 import { useToast } from "@/hooks/use-toast"
 import { apiClient } from "@/lib/api-client"
+import { BudgetCreatedDialog } from "@/components/budget-created-dialog"
 import type { SubcategoryResponse } from "@/lib/types"
 
 const formSchema = z.object({
@@ -55,6 +56,8 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
   const { toast } = useToast()
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [budgetCreatedDialogOpen, setBudgetCreatedDialogOpen] = useState(false)
+  const [budgetInfo, setBudgetInfo] = useState<{ year: number; month: number } | null>(null)
 
   // Fetch subcategories - filter by category if selected, otherwise show all
   useEffect(() => {
@@ -133,6 +136,12 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
       setSubcategories([])
       // Refresh transactions
       await fetchTransactions()
+      
+      // Show budget created dialog if a budget was created
+      if (result.budget_created && result.budget_year && result.budget_month) {
+        setBudgetInfo({ year: result.budget_year, month: result.budget_month })
+        setBudgetCreatedDialogOpen(true)
+      }
     } else {
       toast({
         title: "Error",
@@ -369,6 +378,14 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
           </form>
         </Form>
       </DialogContent>
+      {budgetInfo && (
+        <BudgetCreatedDialog
+          open={budgetCreatedDialogOpen}
+          onOpenChange={setBudgetCreatedDialogOpen}
+          year={budgetInfo.year}
+          month={budgetInfo.month}
+        />
+      )}
     </Dialog>
   )
 }

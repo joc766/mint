@@ -175,6 +175,12 @@ class TransactionResponse(TransactionBase):
     class Config:
         from_attributes = True
 
+class TransactionCreateResponse(TransactionResponse):
+    """Extended response for transaction creation that includes budget auto-creation info"""
+    budget_created: bool = False
+    budget_year: Optional[int] = None
+    budget_month: Optional[int] = None
+
 class TransactionUpdate(BaseModel):
     custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None

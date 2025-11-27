@@ -113,6 +113,12 @@ export interface TransactionResponse {
   custom_subcategory?: SubcategoryResponse | null
 }
 
+export interface TransactionCreateResponse extends TransactionResponse {
+  budget_created: boolean
+  budget_year?: number | null
+  budget_month?: number | null
+}
+
 export interface TransactionCreate {
   amount: string | number
   date: string
