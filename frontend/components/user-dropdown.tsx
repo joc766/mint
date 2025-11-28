@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import { User, Settings, LogOut } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -26,10 +26,10 @@ export function UserDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Avatar className="h-8 w-8 cursor-pointer">
-          <AvatarImage src="/placeholder-user.jpg" alt="User" />
-          <AvatarFallback>JD</AvatarFallback>
-        </Avatar>
+        <Button variant="ghost" size="icon" className="relative">
+          <User className="h-5 w-5" />
+          <span className="sr-only">User menu</span>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>My Account</DropdownMenuLabel>
