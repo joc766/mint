@@ -197,16 +197,16 @@ export default function SettingsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Default Budget Management</CardTitle>
-                <CardDescription>Edit your default budget template that serves as the baseline for all months.</CardDescription>
+                <CardTitle>Default Budget Template</CardTitle>
+                <CardDescription>Edit your default budget template that serves as the baseline for all new monthly budgets.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Your default budget is used as a template when creating new monthly budgets. Changes here don&apos;t affect existing monthly budgets.
+                    Your default budget template is used when creating budgets for new months. Changes here won&apos;t affect existing monthly budgets.
                   </p>
-                  <Button onClick={() => router.push("/settings/default-budget")} className="bg-emerald-500 hover:bg-emerald-600">
-                    Edit Default Budget
+                  <Button onClick={() => router.push("/budget?default=true")} className="bg-emerald-500 hover:bg-emerald-600">
+                    Edit Default Budget Template
                   </Button>
                 </div>
               </CardContent>
@@ -215,15 +215,15 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Monthly Budget Management</CardTitle>
-                <CardDescription>Edit your current month&apos;s budget distribution.</CardDescription>
+                <CardDescription>Edit budget distributions for specific months.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Edit how your budget is distributed across categories and subcategories for the current month.
+                    Edit how your budget is distributed across categories and subcategories for any month.
                   </p>
                   <Button onClick={() => router.push("/budget")} className="bg-emerald-500 hover:bg-emerald-600">
-                    Edit Current Month&apos;s Budget
+                    Manage Monthly Budgets
                   </Button>
                 </div>
               </CardContent>
