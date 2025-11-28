@@ -196,7 +196,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
             {filteredExpenses.map((expense) => (
               <div
                 key={expense.id}
-                className="flex items-center justify-between border-b pb-4 cursor-pointer hover:bg-gray-50 p-2 rounded-lg -mx-2"
+                className="flex items-center justify-between border-b pb-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg -mx-2"
                 onClick={() => {
                   setSelectedTransaction(expense)
                   setIsCategorizeOpen(true)
