@@ -40,11 +40,17 @@ The easiest way to get started is using Docker Compose, which sets up all servic
 
 2. **Start all services:**
    ```bash
-   # Start database, API, and frontend (development mode)
-   docker-compose up
+   # Development mode (with hot reload)
+   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
    
-   # Or start in detached mode
-   docker-compose up -d
+   # Or use the convenience script
+   ./scripts/dev.sh
+   
+   # Production mode
+   BUILD_MODE=production docker-compose up --build
+   
+   # Or use the convenience script
+   ./scripts/prod.sh
    ```
 
 3. **Access the application:**
@@ -214,22 +220,31 @@ The project includes a Next.js frontend application for interacting with the API
 
 ### Quick Start
 
-**Development Mode (Default):**
+**Development Mode (with hot reload):**
 ```bash
 # Start all services including frontend in development mode
-docker-compose up
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 # Or start only the frontend
-docker-compose up frontend
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up frontend
+
+# Or use the convenience script
+./scripts/dev.sh
 ```
 
 **Production Mode:**
 ```bash
 # Build and start all services (db, api, frontend) in production
-BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
+BUILD_MODE=production docker-compose up --build
 
 # Or start only the frontend in production
-BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build frontend
+BUILD_MODE=production docker-compose up --build frontend
+
+# For production deployment with auto-restart
+BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
+
+# Or use the convenience script
+./scripts/prod.sh
 ```
 
 ### Development vs Production Builds
@@ -244,13 +259,16 @@ The frontend supports two build modes:
 
 **Start development:**
 ```bash
-docker-compose up frontend
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up frontend
+
+# Or use the convenience script
+./scripts/dev.sh frontend
 ```
 
 **Testing hot reload:**
 ```bash
 # Start the frontend
-docker-compose up -d frontend
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d frontend
 
 # Watch the logs
 docker-compose logs -f frontend
@@ -270,7 +288,10 @@ For detailed information on hot reload configuration and troubleshooting, see [H
 **Build and start production:**
 ```bash
 # Build and start all services in production (single command)
-BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
+BUILD_MODE=production docker-compose up --build
+
+# Or use the convenience script
+./scripts/prod.sh
 ```
 
 ### Environment Variables
@@ -295,6 +316,9 @@ To test the production build before deploying:
 
 ```bash
 BUILD_MODE=production docker-compose up frontend
+
+# Or use the convenience script (foreground mode)
+./scripts/prod.sh --no-detach frontend
 ```
 
 Access at: http://localhost:3000

@@ -14,12 +14,18 @@ import type {
 
 interface BudgetContextType {
   budgetTemplate: BudgetTemplateResponse | null
+  defaultBudget: BudgetTemplateResponse | null
   budgetSettings: UserBudgetSettingsResponse | null
   isLoading: boolean
   error?: string
   fetchMonthlyBudget: (year: number, month: number) => Promise<BudgetTemplateResponse | null>
   createMonthlyBudget: (budget: BudgetTemplateCreate) => Promise<BudgetTemplateResponse | null>
   updateMonthlyBudget: (year: number, month: number, update: BudgetTemplateUpdate) => Promise<boolean>
+  fetchDefaultBudget: () => Promise<BudgetTemplateResponse | null>
+  createDefaultBudget: (budget: BudgetTemplateCreate) => Promise<BudgetTemplateResponse | null>
+  updateDefaultBudget: (update: BudgetTemplateUpdate) => Promise<boolean>
+  copyDefaultToMonth: (year: number, month: number) => Promise<BudgetTemplateResponse | null>
+  resetMonthToDefault: (year: number, month: number) => Promise<BudgetTemplateResponse | null>
   fetchBudgetSettings: () => Promise<void>
   updateBudgetSettings: (settings: UserBudgetSettingsCreate) => Promise<boolean>
 }
@@ -28,6 +34,7 @@ const BudgetContext = createContext<BudgetContextType | undefined>(undefined)
 
 export function BudgetProvider({ children }: { children: React.ReactNode }) {
   const [budgetTemplate, setBudgetTemplate] = useState<BudgetTemplateResponse | null>(null)
+  const [defaultBudget, setDefaultBudget] = useState<BudgetTemplateResponse | null>(null)
   const [budgetSettings, setBudgetSettings] = useState<UserBudgetSettingsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>()
@@ -127,6 +134,153 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const fetchDefaultBudget = useCallback(async (): Promise<BudgetTemplateResponse | null> => {
+    if (!isAuthenticated) return null
+
+    setIsLoading(true)
+    setError(undefined)
+
+    try {
+      const { data, error: apiError } = await apiClient.get<BudgetTemplateResponse>("/budget/default/")
+
+      if (apiError) {
+        // 404 is expected if default budget doesn't exist yet
+        if (apiError.includes("404") || apiError.includes("not found")) {
+          setDefaultBudget(null)
+          setIsLoading(false)
+          return null
+        }
+        setError(apiError)
+        setIsLoading(false)
+        return null
+      }
+
+      setDefaultBudget(data || null)
+      setIsLoading(false)
+      return data || null
+    } catch (err) {
+      if (err instanceof Error && (err.message.includes("404") || err.message.includes("not found"))) {
+        setDefaultBudget(null)
+        setIsLoading(false)
+        return null
+      }
+      setError(err instanceof Error ? err.message : "Failed to fetch default budget")
+      setIsLoading(false)
+      return null
+    }
+  }, [isAuthenticated])
+
+  const createDefaultBudget = async (budget: BudgetTemplateCreate): Promise<BudgetTemplateResponse | null> => {
+    if (!isAuthenticated) return null
+
+    setIsLoading(true)
+    setError(undefined)
+
+    try {
+      const { data, error: apiError } = await apiClient.post<BudgetTemplateResponse>("/budget/default/", {
+        ...budget,
+        is_default: true,
+        month: null,
+        year: null,
+      })
+
+      if (apiError) {
+        setError(apiError)
+        setIsLoading(false)
+        return null
+      }
+
+      setDefaultBudget(data || null)
+      setIsLoading(false)
+      return data || null
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create default budget")
+      setIsLoading(false)
+      return null
+    }
+  }
+
+  const updateDefaultBudget = async (update: BudgetTemplateUpdate): Promise<boolean> => {
+    if (!isAuthenticated) return false
+
+    setIsLoading(true)
+    setError(undefined)
+
+    try {
+      const { data, error: apiError } = await apiClient.put<BudgetTemplateResponse>("/budget/default/", update)
+
+      if (apiError) {
+        setError(apiError)
+        setIsLoading(false)
+        return false
+      }
+
+      setDefaultBudget(data || null)
+      setIsLoading(false)
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update default budget")
+      setIsLoading(false)
+      return false
+    }
+  }
+
+  const copyDefaultToMonth = async (year: number, month: number): Promise<BudgetTemplateResponse | null> => {
+    if (!isAuthenticated) return null
+
+    setIsLoading(true)
+    setError(undefined)
+
+    try {
+      const { data, error: apiError } = await apiClient.post<BudgetTemplateResponse>(
+        `/budget/monthly/${year}/${month}/copy-from-default`,
+        {}
+      )
+
+      if (apiError) {
+        setError(apiError)
+        setIsLoading(false)
+        return null
+      }
+
+      setBudgetTemplate(data || null)
+      setIsLoading(false)
+      return data || null
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to copy default budget to month")
+      setIsLoading(false)
+      return null
+    }
+  }
+
+  const resetMonthToDefault = async (year: number, month: number): Promise<BudgetTemplateResponse | null> => {
+    if (!isAuthenticated) return null
+
+    setIsLoading(true)
+    setError(undefined)
+
+    try {
+      const { data, error: apiError } = await apiClient.post<BudgetTemplateResponse>(
+        `/budget/monthly/${year}/${month}/reset-to-default`,
+        {}
+      )
+
+      if (apiError) {
+        setError(apiError)
+        setIsLoading(false)
+        return null
+      }
+
+      setBudgetTemplate(data || null)
+      setIsLoading(false)
+      return data || null
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reset month to default budget")
+      setIsLoading(false)
+      return null
+    }
+  }
+
   const fetchBudgetSettings = useCallback(async () => {
     if (!isAuthenticated) return
 
@@ -173,28 +327,36 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated) {
       setBudgetTemplate(null)
+      setDefaultBudget(null)
       setBudgetSettings(null)
       setError(undefined)
     }
   }, [isAuthenticated])
 
-  // Fetch budget settings when authenticated
+  // Fetch budget settings and default budget when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchBudgetSettings()
+      fetchDefaultBudget()
     }
-  }, [isAuthenticated, fetchBudgetSettings])
+  }, [isAuthenticated, fetchBudgetSettings, fetchDefaultBudget])
 
   return (
     <BudgetContext.Provider
       value={{
         budgetTemplate,
+        defaultBudget,
         budgetSettings,
         isLoading,
         error,
         fetchMonthlyBudget,
         createMonthlyBudget,
         updateMonthlyBudget,
+        fetchDefaultBudget,
+        createDefaultBudget,
+        updateDefaultBudget,
+        copyDefaultToMonth,
+        resetMonthToDefault,
         fetchBudgetSettings,
         updateBudgetSettings,
       }}

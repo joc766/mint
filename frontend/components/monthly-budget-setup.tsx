@@ -52,9 +52,10 @@ const EXPENSE_EMOJIS = [
 
 interface MonthlyBudgetSetupProps {
   onComplete?: () => void
+  isDefault?: boolean
 }
 
-export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
+export function MonthlyBudgetSetup({ onComplete, isDefault = false }: MonthlyBudgetSetupProps) {
   const { categories = [], isLoading: categoriesLoading = false, fetchCategories } = useCategories()
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [isLoadingSubcategories, setIsLoadingSubcategories] = useState(false)
@@ -624,11 +625,6 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
       return
     }
 
-    // Get current month and year
-    const now = new Date()
-    const month = now.getMonth() + 1 // JavaScript months are 0-indexed
-    const year = now.getFullYear()
-
     // Prepare entries for API (convert category_id/subcategory_id to numbers)
     const apiEntries = validEntries.map((entry) => ({
       category_id:
@@ -648,15 +644,35 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
         : (entry.budgeted_amount || 0),
     }))
 
-    // Create monthly budget using the new endpoint
-    const budgetCreate: BudgetTemplateCreate = {
-      month,
-      year,
-      total_budget: totalBudget,
-      entries: apiEntries,
+    // Create budget template
+    let budgetCreate: BudgetTemplateCreate
+    let apiEndpoint: string
+
+    if (isDefault) {
+      // Create default budget (no month/year)
+      budgetCreate = {
+        is_default: true,
+        total_budget: totalBudget,
+        entries: apiEntries,
+      }
+      apiEndpoint = "/budget/default/"
+    } else {
+      // Create monthly budget
+      const now = new Date()
+      const month = now.getMonth() + 1 // JavaScript months are 0-indexed
+      const year = now.getFullYear()
+
+      budgetCreate = {
+        month,
+        year,
+        is_default: false,
+        total_budget: totalBudget,
+        entries: apiEntries,
+      }
+      apiEndpoint = "/budget/monthly/"
     }
 
-    const { error: apiError } = await apiClient.post("/budget/monthly/", budgetCreate)
+    const { error: apiError } = await apiClient.post(apiEndpoint, budgetCreate)
 
     if (apiError) {
       setError(apiError)
@@ -814,7 +830,7 @@ export function MonthlyBudgetSetup({ onComplete }: MonthlyBudgetSetupProps) {
       {/* Budget Setting Section */}
       <div className="space-y-4 border-t pt-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium">Set Your Budget</h3>
+          <h3 className="text-lg font-medium">{isDefault ? "Set Your Default Budget" : "Set Your Budget"}</h3>
           <Button
             onClick={addEntry}
             size="sm"

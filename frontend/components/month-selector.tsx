@@ -1,13 +1,21 @@
 "use client"
 
-import { useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 
-export function MonthSelector({ onMonthChange }: { onMonthChange: (date: Date) => void }) {
-  const [date, setDate] = useState(new Date())
+export function MonthSelector({ 
+  selectedMonth, 
+  onMonthChange,
+  disableCalendar = false
+}: { 
+  selectedMonth?: Date
+  onMonthChange: (date: Date) => void
+  disableCalendar?: boolean
+}) {
+  // Use the passed selectedMonth, or default to current date
+  const date = selectedMonth || new Date()
 
   const monthNames = [
     "January",
@@ -29,14 +37,12 @@ export function MonthSelector({ onMonthChange }: { onMonthChange: (date: Date) =
   const goToPreviousMonth = () => {
     const newDate = new Date(date)
     newDate.setMonth(newDate.getMonth() - 1)
-    setDate(newDate)
     onMonthChange(newDate)
   }
 
   const goToNextMonth = () => {
     const newDate = new Date(date)
     newDate.setMonth(newDate.getMonth() + 1)
-    setDate(newDate)
     onMonthChange(newDate)
   }
 
@@ -44,7 +50,6 @@ export function MonthSelector({ onMonthChange }: { onMonthChange: (date: Date) =
     if (!newDate) return
     // Set day to 1 to just select the month
     const selectedDate = new Date(newDate.getFullYear(), newDate.getMonth(), 1)
-    setDate(selectedDate)
     onMonthChange(selectedDate)
   }
 
@@ -54,30 +59,31 @@ export function MonthSelector({ onMonthChange }: { onMonthChange: (date: Date) =
         <ChevronLeft className="h-4 w-4" />
       </Button>
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className="min-w-[180px]">
-            {currentMonthYear}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0">
-          <Calendar
-            mode="single"
-            selected={date}
-            onSelect={handleCalendarSelect}
-            initialFocus
-            // Show only month and year view
-            showOutsideDays={false}
-            captionLayout="dropdown-buttons"
-            fromYear={2020}
-            toYear={2030}
-            defaultMonth={date}
-            fixedWeeks
-            // Force type to avoid inference issues
-            {...({} as any)}
-          />
-        </PopoverContent>
-      </Popover>
+      {disableCalendar ? (
+        <div className="min-w-[180px] h-10 px-4 py-2 border border-input bg-background rounded-md flex items-center justify-center text-sm font-medium">
+          {currentMonthYear}
+        </div>
+      ) : (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="min-w-[180px]">
+              {currentMonthYear}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={date as Date}
+              onSelect={handleCalendarSelect as (date: Date | undefined) => void}
+              initialFocus
+              showOutsideDays={false}
+              fromYear={2020}
+              toYear={2030}
+              defaultMonth={date}
+            />
+          </PopoverContent>
+        </Popover>
+      )}
 
       <Button
         variant="outline"

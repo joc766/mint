@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useRef, useMemo, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
+import { MonthSelector } from "@/components/month-selector"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -48,13 +49,29 @@ const EXPENSE_EMOJIS = [
   "🎁", "🎂", "🎈", "🎉", "🎊", "🎀", "🎃", "🎄", "🎆", "🎇",
 ]
 
-export default function BudgetPage() {
+function BudgetPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const { formatAmount } = useCurrency()
   const { categories, isLoading: categoriesLoading, fetchCategories } = useCategories()
-  const { budgetSettings, fetchBudgetSettings, fetchMonthlyBudget, updateMonthlyBudget, createMonthlyBudget } = useBudget()
+  const { budgetSettings, fetchBudgetSettings, fetchMonthlyBudget, updateMonthlyBudget, createMonthlyBudget, defaultBudget, fetchDefaultBudget, copyDefaultToMonth, resetMonthToDefault, updateDefaultBudget, createDefaultBudget } = useBudget()
   const { toast } = useToast()
+  
+  // Check if we're in default budget mode
+  const isDefaultMode = searchParams.get('default') === 'true'
+  
+  // Initialize selected month from URL params or use current date
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    if (isDefaultMode) return new Date() // Default mode doesn't use month selection
+    const yearParam = searchParams.get('year')
+    const monthParam = searchParams.get('month')
+    if (yearParam && monthParam) {
+      return new Date(parseInt(yearParam), parseInt(monthParam) - 1, 1)
+    }
+    return new Date()
+  })
+  
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [isLoadingSubcategories, setIsLoadingSubcategories] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -62,6 +79,8 @@ export default function BudgetPage() {
   const [error, setError] = useState<string>()
   const [entryErrors, setEntryErrors] = useState<Record<number, string>>({})
   const [isLoading, setIsLoading] = useState(true)
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
 
   // Category/Subcategory creation states
   const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false)
@@ -123,37 +142,56 @@ export default function BudgetPage() {
     }
   }
 
-  // Load current month's budget
+  // Load current month's budget or default budget
   useEffect(() => {
     const loadBudget = async () => {
       if (!isAuthenticated) return
 
       setIsLoading(true)
       
-      // Fetch budget settings and current month's budget
+      // Fetch budget settings and default budget
       await fetchBudgetSettings()
+      await fetchDefaultBudget()
       
-      const now = new Date()
-      const year = now.getFullYear()
-      const month = now.getMonth() + 1
-      
-      const currentBudget = await fetchMonthlyBudget(year, month)
-      
-      if (currentBudget?.entries) {
-        // Load existing budget entries, ensuring amounts are valid numbers
-        setEntries(
-          currentBudget.entries.map((entry) => {
-            const amount = Number(entry.budgeted_amount) || 0
-            return {
-              category_id: entry.category_id || null,
-              subcategory_id: entry.subcategory_id || null,
-              budgeted_amount: isNaN(amount) ? 0 : amount,
-            }
-          })
-        )
+      if (isDefaultMode) {
+        // Load default budget
+        if (defaultBudget?.entries) {
+          setEntries(
+            defaultBudget.entries.map((entry) => {
+              const amount = Number(entry.budgeted_amount) || 0
+              return {
+                category_id: entry.category_id || null,
+                subcategory_id: entry.subcategory_id || null,
+                budgeted_amount: isNaN(amount) ? 0 : amount,
+              }
+            })
+          )
+        } else {
+          setEntries([])
+        }
       } else {
-        // No budget exists yet, start with empty entries
-        setEntries([])
+        // Load monthly budget
+        const year = selectedMonth.getFullYear()
+        const month = selectedMonth.getMonth() + 1
+        
+        const currentBudget = await fetchMonthlyBudget(year, month)
+        
+        if (currentBudget?.entries) {
+          // Load existing budget entries, ensuring amounts are valid numbers
+          setEntries(
+            currentBudget.entries.map((entry) => {
+              const amount = Number(entry.budgeted_amount) || 0
+              return {
+                category_id: entry.category_id || null,
+                subcategory_id: entry.subcategory_id || null,
+                budgeted_amount: isNaN(amount) ? 0 : amount,
+              }
+            })
+          )
+        } else {
+          // No budget exists yet, start with empty entries
+          setEntries([])
+        }
       }
       
       await fetchSubcategories()
@@ -162,7 +200,7 @@ export default function BudgetPage() {
 
     loadBudget()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated])
+  }, [isAuthenticated, selectedMonth, isDefaultMode])
 
     const addEntry = () => {
     const monthlyIncome = budgetSettings ? Number(budgetSettings.monthly_income) || 0 : 0
@@ -355,6 +393,77 @@ export default function BudgetPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete subcategory")
     }
+  }
+
+  const handleResetToDefault = async () => {
+    setIsResetting(true)
+    setError(undefined)
+
+    const year = selectedMonth.getFullYear()
+    const month = selectedMonth.getMonth() + 1
+
+    const result = await resetMonthToDefault(year, month)
+
+    if (result) {
+      // Reload the entries from the reset budget
+      if (result.entries) {
+        setEntries(
+          result.entries.map((entry) => ({
+            category_id: entry.category_id || null,
+            subcategory_id: entry.subcategory_id || null,
+            budgeted_amount: Number(entry.budgeted_amount) || 0,
+          }))
+        )
+      }
+      toast({
+        title: "Success",
+        description: "Budget reset to default successfully",
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to reset budget to default",
+        variant: "destructive",
+      })
+    }
+
+    setIsResetDialogOpen(false)
+    setIsResetting(false)
+  }
+
+  const handleCreateFromDefault = async () => {
+    setIsResetting(true)
+    setError(undefined)
+
+    const year = selectedMonth.getFullYear()
+    const month = selectedMonth.getMonth() + 1
+
+    const result = await copyDefaultToMonth(year, month)
+
+    if (result) {
+      // Reload the entries from the new budget
+      if (result.entries) {
+        setEntries(
+          result.entries.map((entry) => ({
+            category_id: entry.category_id || null,
+            subcategory_id: entry.subcategory_id || null,
+            budgeted_amount: Number(entry.budgeted_amount) || 0,
+          }))
+        )
+      }
+      toast({
+        title: "Success",
+        description: "Budget created from default successfully",
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to create budget from default",
+        variant: "destructive",
+      })
+    }
+
+    setIsResetting(false)
   }
 
   const updateEntry = (
@@ -559,10 +668,6 @@ export default function BudgetPage() {
 
     setIsSubmitting(true)
 
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = now.getMonth() + 1
-
     // Calculate total budget from budget settings (income - savings goal)
     const monthlyIncome = budgetSettings ? Number(budgetSettings.monthly_income) || 0 : 0
     const monthlySavingsGoal = budgetSettings ? Number(budgetSettings.monthly_savings_goal) || 0 : 0
@@ -600,52 +705,86 @@ export default function BudgetPage() {
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
 
-    // Check if budget exists for current month
-    const currentBudget = await fetchMonthlyBudget(year, month)
-
-    if (currentBudget) {
-      // Update existing budget
-      const success = await updateMonthlyBudget(year, month, {
+    if (isDefaultMode) {
+      // Save to default budget
+      const budgetData = {
         total_budget: totalBudget,
         entries: apiEntries,
-      })
-
+      }
+      
+      let success
+      if (defaultBudget) {
+        success = await updateDefaultBudget(budgetData)
+      } else {
+        success = await createDefaultBudget(budgetData)
+      }
+      
       if (success) {
         toast({
           title: "Success",
-          description: "Budget updated successfully",
+          description: "Default budget template updated successfully",
         })
-        // Refresh the budget
-        await fetchMonthlyBudget(year, month)
+        await fetchDefaultBudget()
         setError(undefined)
       } else {
         toast({
           title: "Error",
-          description: "Failed to update budget",
+          description: "Failed to update default budget template",
           variant: "destructive",
         })
       }
     } else {
-      // Create new budget if it doesn't exist
-      const budgetCreate: BudgetTemplateCreate = {
-        month,
-        year,
-        total_budget: totalBudget,
-        entries: apiEntries,
-      }
-      
-      const createdBudget = await createMonthlyBudget(budgetCreate)
-      
-      if (createdBudget) {
-        toast({
-          title: "Success",
-          description: "Budget created successfully",
+      // Save to monthly budget
+      const year = selectedMonth.getFullYear()
+      const month = selectedMonth.getMonth() + 1
+
+      // Check if budget exists for current month
+      const currentBudget = await fetchMonthlyBudget(year, month)
+
+      if (currentBudget) {
+        // Update existing budget
+        const success = await updateMonthlyBudget(year, month, {
+          total_budget: totalBudget,
+          entries: apiEntries,
         })
-        setError(undefined)
-        // Refresh the budget
-        await fetchMonthlyBudget(year, month)
+
+        if (success) {
+          toast({
+            title: "Success",
+            description: "Budget updated successfully",
+          })
+          // Refresh the budget
+          await fetchMonthlyBudget(year, month)
+          setError(undefined)
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to update budget",
+            variant: "destructive",
+          })
+        }
       } else {
-        setError("Failed to create budget. Please try again.")
+        // Create new budget if it doesn't exist
+        const budgetCreate: BudgetTemplateCreate = {
+          month,
+          year,
+          total_budget: totalBudget,
+          entries: apiEntries,
+        }
+        
+        const createdBudget = await createMonthlyBudget(budgetCreate)
+        
+        if (createdBudget) {
+          toast({
+            title: "Success",
+            description: "Budget created successfully",
+          })
+          setError(undefined)
+          // Refresh the budget
+          await fetchMonthlyBudget(year, month)
+        } else {
+          setError("Failed to create budget. Please try again.")
+        }
       }
     }
 
@@ -796,14 +935,22 @@ export default function BudgetPage() {
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-2 mb-6">
-            <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8">
-              <ArrowLeft className="h-4 w-4" />
-              <span className="sr-only">Back</span>
-            </Button>
-            <h1 className="text-2xl font-bold">
-              Edit Budget - {new Date().toLocaleString("default", { month: "long", year: "numeric" })}
-            </h1>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={() => router.push(isDefaultMode ? "/settings" : "/")} className="h-8 w-8">
+                <ArrowLeft className="h-4 w-4" />
+                <span className="sr-only">Back</span>
+              </Button>
+              <h1 className="text-2xl font-bold">
+                {isDefaultMode 
+                  ? "Edit Default Budget Template" 
+                  : `Edit Budget - ${selectedMonth.toLocaleString("default", { month: "long", year: "numeric" })}`
+                }
+              </h1>
+            </div>
+            {!isDefaultMode && (
+              <MonthSelector selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} />
+            )}
           </div>
 
           {error && (
@@ -913,14 +1060,62 @@ export default function BudgetPage() {
                       <Plus className="mr-2 h-4 w-4" />
                       Add Entry
                     </Button>
+                    {!isDefaultMode && defaultBudget && entries.length > 0 && (
+                      <Button onClick={() => setIsResetDialogOpen(true)} size="sm" variant="outline">
+                        Reset to Default
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {entries.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No budget entries yet. Click &quot;Add Entry&quot; to get started.</p>
+                <div className="text-center py-8">
+                  {isDefaultMode ? (
+                    <div className="space-y-4">
+                      <p className="text-muted-foreground">No default budget template entries yet.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Add categories and budget amounts to create your default template.
+                      </p>
+                      <div className="flex gap-4 justify-center">
+                        <Button onClick={addEntry} className="bg-emerald-500 hover:bg-emerald-600">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add First Entry
+                        </Button>
+                      </div>
+                    </div>
+                  ) : defaultBudget ? (
+                    <div className="space-y-4">
+                      <p className="text-muted-foreground">No budget found for this month.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Would you like to create one based on your default budget, or start from scratch?
+                      </p>
+                      <div className="flex gap-4 justify-center">
+                        <Button onClick={handleCreateFromDefault} className="bg-emerald-500 hover:bg-emerald-600">
+                          Create from Default
+                        </Button>
+                        <Button onClick={addEntry} variant="outline">
+                          Start from Scratch
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <p className="text-muted-foreground">No budget entries yet.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Create a default budget template first, or add entries manually.
+                      </p>
+                      <div className="flex gap-4 justify-center">
+                        <Button onClick={() => router.push("/budget?default=true")} className="bg-emerald-500 hover:bg-emerald-600">
+                          Create Default Budget Template
+                        </Button>
+                        <Button onClick={addEntry} variant="outline">
+                          Add Entry Manually
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -1663,6 +1858,42 @@ export default function BudgetPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reset to Default Dialog */}
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset to Default Budget</DialogTitle>
+            <DialogDescription>
+              This will replace your current month&apos;s budget with your default budget template. 
+              All current entries will be replaced. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetDialogOpen(false)} disabled={isResetting}>
+              Cancel
+            </Button>
+            <Button onClick={handleResetToDefault} disabled={isResetting} className="bg-emerald-500 hover:bg-emerald-600">
+              {isResetting ? "Resetting..." : "Reset to Default"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+export default function BudgetPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col bg-background">
+        <DashboardHeader />
+        <main className="flex-1 container mx-auto px-4 py-8">
+          <div className="text-center py-12">Loading budget...</div>
+        </main>
+      </div>
+    }>
+      <BudgetPageContent />
+    </Suspense>
   )
 }

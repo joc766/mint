@@ -39,8 +39,8 @@ jobs:
       
       - name: Build and start services (Development Mode)
         run: |
-          docker compose up -d --build
-          echo "Services started in development mode"
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+          echo "Services started in development mode with hot reload configuration"
       
       - name: Wait for services to be healthy
         run: |
@@ -67,6 +67,18 @@ jobs:
           fi
           echo "✓ Frontend returns valid HTML"
       
+      - name: Verify frontend is in development mode
+        run: |
+          # Check that dev server is running (not production server)
+          LOGS=$(docker compose -f docker-compose.yml -f docker-compose.dev.yml logs frontend 2>&1)
+          if echo "$LOGS" | grep -q "pnpm dev"; then
+            echo "✓ Frontend is running development server (pnpm dev)"
+          else
+            echo "⚠ Warning: Could not confirm development server is running"
+            echo "Frontend logs:"
+            echo "$LOGS"
+          fi
+      
       - name: Show service logs on failure (Development)
         if: failure()
         run: |
@@ -80,7 +92,7 @@ jobs:
       - name: Cleanup development containers
         if: always()
         run: |
-          docker compose down -v
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v
 
   test-production-mode:
     name: Test Production Build Mode
@@ -147,9 +159,25 @@ jobs:
           BUILD_CHECK=$(docker compose exec -T frontend printenv NODE_ENV || echo "not_found")
           echo "Frontend NODE_ENV: $BUILD_CHECK"
           if [ "$BUILD_CHECK" != "production" ]; then
-            echo "⚠ Warning: Frontend NODE_ENV is not set to production"
+            echo "❌ ERROR: Frontend NODE_ENV is not set to production"
+            exit 1
           else
             echo "✓ Frontend NODE_ENV correctly set to production"
+          fi
+          
+          # Check that production server is running (node server.js, not pnpm dev)
+          LOGS=$(docker compose logs frontend 2>&1)
+          if echo "$LOGS" | grep -q "pnpm dev"; then
+            echo "❌ ERROR: Frontend is running development server (pnpm dev) instead of production server"
+            echo "Frontend logs:"
+            echo "$LOGS"
+            exit 1
+          elif echo "$LOGS" | grep -q "server.js"; then
+            echo "✓ Frontend is running production server (node server.js)"
+          else
+            echo "⚠ Warning: Could not confirm which server is running"
+            echo "Frontend logs:"
+            echo "$LOGS"
           fi
       
       - name: Show service logs on failure (Production)

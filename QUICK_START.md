@@ -1,10 +1,17 @@
 # Quick Start Guide - Development vs Production
 
-## Development Mode (Default)
+## Development Mode (with hot reload)
 
 **Start development server:**
 ```bash
-docker-compose up frontend
+# Full command
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# Or use convenience script
+./scripts/dev.sh
+
+# Frontend only
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up frontend
 ```
 
 **Features:**
@@ -17,11 +24,14 @@ docker-compose up frontend
 
 **Build and start production server:**
 ```bash
-# Build production image
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml build frontend
+# Full command
+BUILD_MODE=production docker-compose up --build
 
-# Start production container
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod up -d frontend
+# Or use convenience script
+./scripts/prod.sh
+
+# Frontend only
+BUILD_MODE=production docker-compose up --build frontend
 ```
 
 **Features:**
@@ -34,23 +44,32 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod u
 
 ### Development
 ```bash
-# Start all services (dev mode)
-docker-compose up
+# Start all services (dev mode with hot reload)
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# Or use convenience script
+./scripts/dev.sh
 
 # Start only frontend (dev mode)
-docker-compose up frontend
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up frontend
 
 # Rebuild and start
-docker-compose up --build frontend
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build frontend
 ```
 
 ### Production
 ```bash
 # Build and start all services in production (db, api, frontend)
-BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
+BUILD_MODE=production docker-compose up --build
 
-# Or start only frontend in production
-BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build frontend
+# Or use convenience script
+./scripts/prod.sh
+
+# Start only frontend in production
+BUILD_MODE=production docker-compose up --build frontend
+
+# For production deployment with auto-restart (detached)
+BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
 
 # View logs (all services or specific service)
 docker-compose logs -f
@@ -62,7 +81,7 @@ docker-compose down
 
 ### Testing Production Locally
 ```bash
-# Build and run production build locally
+# Build and run production build locally (foreground mode)
 BUILD_MODE=production docker-compose up frontend
 ```
 
@@ -92,16 +111,18 @@ NEXT_PUBLIC_API_URL=https://api.yourdomain.com
 2. **Start in desired mode:**
    ```bash
    # Development (all services)
-   docker-compose up
+   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+   # Or: ./scripts/dev.sh
    
    # Development (frontend only)
-   docker-compose up frontend
+   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up frontend
    
    # Production (all services)
-   BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
+   BUILD_MODE=production docker-compose up --build
+   # Or: ./scripts/prod.sh
    
    # Production (frontend only)
-   BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build frontend
+   BUILD_MODE=production docker-compose up --build frontend
    ```
 
 ## Troubleshooting

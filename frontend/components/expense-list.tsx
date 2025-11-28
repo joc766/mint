@@ -28,6 +28,13 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   const { categories } = useCategories()
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
 
+  // Format date string without timezone conversion
+  const formatDateLocal = (dateString: string | Date) => {
+    const dateStr = dateString.toString().substring(0, 10) // "YYYY-MM-DD"
+    const [year, month, day] = dateStr.split('-')
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString()
+  }
+
   // Fetch subcategories once
   useEffect(() => {
     const fetchSubcategories = async () => {
@@ -43,8 +50,12 @@ export function ExpenseList({ selectedMonth = new Date() }) {
 
   useEffect(() => {
     // Fetch transactions for the selected month
-    const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString().split('T')[0]
-    const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString().split('T')[0]
+    // Use local date formatting to avoid timezone issues
+    const year = selectedMonth.getFullYear()
+    const month = selectedMonth.getMonth() + 1 // JS months are 0-indexed
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month, 0).getDate() // Get last day of month
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     
     fetchTransactions({
       start_date: startDate,
@@ -77,11 +88,13 @@ export function ExpenseList({ selectedMonth = new Date() }) {
 
   useEffect(() => {
     // Filter transactions for the selected month
+    // Note: We already fetched filtered transactions from API, but need to ensure
+    // we're comparing dates correctly without timezone conversion issues
     const monthTransactions = transactions.filter((expense) => {
-      const expenseDate = new Date(expense.date)
-      return (
-        expenseDate.getMonth() === selectedMonth.getMonth() && expenseDate.getFullYear() === selectedMonth.getFullYear()
-      )
+      // Extract year-month from ISO date string to avoid timezone issues
+      const dateStr = expense.date.toString().substring(0, 7) // "YYYY-MM"
+      const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
+      return dateStr === selectedYearMonth
     })
 
     // Sort by date (newest first)
@@ -183,7 +196,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
             {filteredExpenses.map((expense) => (
               <div
                 key={expense.id}
-                className="flex items-center justify-between border-b pb-4 cursor-pointer hover:bg-gray-50 p-2 rounded-lg -mx-2"
+                className="flex items-center justify-between border-b pb-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-lg -mx-2"
                 onClick={() => {
                   setSelectedTransaction(expense)
                   setIsCategorizeOpen(true)
@@ -201,7 +214,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                     <div className="text-sm text-muted-foreground flex items-center">
                       <span className="mr-2">{getCategoryName(expense.custom_category_id, expense.custom_subcategory_id)}</span>
                       <span>•</span>
-                      <span className="ml-2">{new Date(expense.date).toLocaleDateString()}</span>
+                      <span className="ml-2">{formatDateLocal(expense.date)}</span>
                     </div>
                     {expense.notes && (
                       <div className="text-xs text-muted-foreground mt-1">{expense.notes}</div>
@@ -220,7 +233,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
           </div>
         )}
       </CardContent>
-      <AddExpenseDialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen} />
+      <AddExpenseDialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen} defaultDate={selectedMonth} />
       <CategorizeTransactionDialog
         open={isCategorizeOpen}
         onOpenChange={setIsCategorizeOpen}

@@ -28,6 +28,13 @@ export default function CategoryPage() {
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [categoryExpenses, setCategoryExpenses] = useState<TransactionResponse[]>([])
   const [totalSpent, setTotalSpent] = useState(0)
+
+  // Format date string without timezone conversion
+  const formatDateLocal = (dateString: string | Date) => {
+    const dateStr = dateString.toString().substring(0, 10) // "YYYY-MM-DD"
+    const [year, month, day] = dateStr.split('-')
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString()
+  }
   const [categoryBudget, setCategoryBudget] = useState(0)
   const [subcategoryBudgets, setSubcategoryBudgets] = useState<Array<{
     id: number
@@ -134,8 +141,12 @@ export default function CategoryPage() {
     if (fetchingRef.current === fetchKey) return // Already fetching
     
     const loadTransactions = async () => {
-      const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toISOString().split('T')[0]
-      const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toISOString().split('T')[0]
+      // Use local date formatting to avoid timezone issues
+      const year = selectedMonth.getFullYear()
+      const month = selectedMonth.getMonth() + 1 // JS months are 0-indexed
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+      const lastDay = new Date(year, month, 0).getDate() // Get last day of month
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
       
       fetchingRef.current = fetchKey
       try {
@@ -319,7 +330,7 @@ export default function CategoryPage() {
               )}
             </div>
           </div>
-          <MonthSelector onMonthChange={setSelectedMonth} />
+          <MonthSelector selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} />
         </div>
 
         {fetchError && (
@@ -429,7 +440,7 @@ export default function CategoryPage() {
                           <div className="text-sm text-muted-foreground">{expense.notes}</div>
                         )}
                         <div className="text-xs text-muted-foreground">
-                          {new Date(expense.date).toLocaleDateString()}
+                          {formatDateLocal(expense.date)}
                         </div>
                       </div>
                       <div className="font-medium">{formatAmount(Math.abs(Number(expense.amount)))}</div>

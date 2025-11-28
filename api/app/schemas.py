@@ -175,6 +175,12 @@ class TransactionResponse(TransactionBase):
     class Config:
         from_attributes = True
 
+class TransactionCreateResponse(TransactionResponse):
+    """Extended response for transaction creation that includes budget auto-creation info"""
+    budget_created: bool = False
+    budget_year: Optional[int] = None
+    budget_month: Optional[int] = None
+
 class TransactionUpdate(BaseModel):
     custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None
@@ -218,8 +224,9 @@ class BudgetTemplateEntryResponse(BudgetTemplateEntryBase):
 class BudgetTemplateResponse(BaseModel):
     id: int
     user_id: int
-    month: int
-    year: int
+    month: Optional[int] = None  # NULL for default budget
+    year: Optional[int] = None   # NULL for default budget
+    is_default: bool
     total_budget: Decimal
     entries: List[BudgetTemplateEntryResponse] = []
     created_at: dt_type
@@ -229,8 +236,9 @@ class BudgetTemplateResponse(BaseModel):
         from_attributes = True
 
 class BudgetTemplateCreate(BaseModel):
-    month: int
-    year: int
+    month: Optional[int] = None
+    year: Optional[int] = None
+    is_default: Optional[bool] = False
     total_budget: Decimal
     entries: List[BudgetTemplateEntryCreate]
 

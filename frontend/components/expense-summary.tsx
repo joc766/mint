@@ -49,13 +49,19 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
     ? budgetTemplate.total_budget
     : budgetSettings
       ? Number(budgetSettings.monthly_income) - Number(budgetSettings.monthly_savings_goal)
-      : 150000
+      : 0
+  
+  // Check if user has budget configured
+  const hasBudget = (budgetTemplate?.total_budget && Number(budgetTemplate.total_budget) > 0) || 
+                    (budgetSettings && Number(budgetSettings.monthly_income) > 0)
 
   useEffect(() => {
     // Filter transactions for selected month
+    // Extract year-month from ISO date string to avoid timezone issues
     const monthTransactions = transactions.filter((t) => {
-      const date = new Date(t.date)
-      return date.getMonth() === selectedMonth.getMonth() && date.getFullYear() === selectedMonth.getFullYear()
+      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+      const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
+      return dateStr === selectedYearMonth
     })
 
     // Calculate total spent (only negative amounts for expenses)
@@ -149,10 +155,21 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
           <CardTitle className="text-sm font-medium">Total Budget</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatAmount(Number(monthlyBudget))}</div>
-          <p className="text-xs text-muted-foreground">
-            for {selectedMonth.toLocaleString("default", { month: "long", year: "numeric" })}
-          </p>
+          {hasBudget ? (
+            <>
+              <div className="text-2xl font-bold">{formatAmount(Number(monthlyBudget))}</div>
+              <p className="text-xs text-muted-foreground">
+                for {selectedMonth.toLocaleString("default", { month: "long", year: "numeric" })}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="text-2xl font-bold text-muted-foreground">--</div>
+              <p className="text-xs text-muted-foreground">
+                No budget set. Create one in Settings.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 

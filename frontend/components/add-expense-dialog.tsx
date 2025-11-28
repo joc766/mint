@@ -24,6 +24,7 @@ import { useTransactions } from "@/contexts/transactions-context"
 import { useCategories } from "@/contexts/categories-context"
 import { useToast } from "@/hooks/use-toast"
 import { apiClient } from "@/lib/api-client"
+import { BudgetCreatedDialog } from "@/components/budget-created-dialog"
 import type { SubcategoryResponse } from "@/lib/types"
 
 const formSchema = z.object({
@@ -36,13 +37,21 @@ const formSchema = z.object({
   notes: z.string().optional(),
 })
 
-export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function AddExpenseDialog({ 
+  open, 
+  onOpenChange,
+  defaultDate
+}: { 
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  defaultDate?: Date
+}) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       amount: undefined,
       name: "",
-      date: new Date(),
+      date: defaultDate || new Date(),
       merchant_name: "",
       category_id: "",
       subcategory_id: "",
@@ -55,6 +64,8 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
   const { toast } = useToast()
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [budgetCreatedDialogOpen, setBudgetCreatedDialogOpen] = useState(false)
+  const [budgetInfo, setBudgetInfo] = useState<{ year: number; month: number } | null>(null)
 
   // Fetch subcategories - filter by category if selected, otherwise show all
   useEffect(() => {
@@ -82,6 +93,14 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryId])
+
+  // Update date when dialog opens with a new defaultDate
+  useEffect(() => {
+    if (open && defaultDate) {
+      form.setValue("date", defaultDate)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultDate])
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     // Determine category_id and subcategory_id based on selection
@@ -133,6 +152,12 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
       setSubcategories([])
       // Refresh transactions
       await fetchTransactions()
+      
+      // Show budget created dialog if a budget was created
+      if (result.budget_created && result.budget_year && result.budget_month) {
+        setBudgetInfo({ year: result.budget_year, month: result.budget_month })
+        setBudgetCreatedDialogOpen(true)
+      }
     } else {
       toast({
         title: "Error",
@@ -369,6 +394,14 @@ export function AddExpenseDialog({ open, onOpenChange }: { open: boolean; onOpen
           </form>
         </Form>
       </DialogContent>
+      {budgetInfo && (
+        <BudgetCreatedDialog
+          open={budgetCreatedDialogOpen}
+          onOpenChange={setBudgetCreatedDialogOpen}
+          year={budgetInfo.year}
+          month={budgetInfo.month}
+        />
+      )}
     </Dialog>
   )
 }

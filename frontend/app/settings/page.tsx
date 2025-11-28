@@ -136,7 +136,7 @@ export default function SettingsPage() {
       <main className="flex-1 container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-2 mb-6">
-            <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8">
+            <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Back</span>
             </Button>
@@ -197,16 +197,33 @@ export default function SettingsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Budget Management</CardTitle>
-                <CardDescription>Edit your current month&apos;s budget distribution.</CardDescription>
+                <CardTitle>Default Budget Template</CardTitle>
+                <CardDescription>Edit your default budget template that serves as the baseline for all new monthly budgets.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Edit how your budget is distributed across categories and subcategories for the current month.
+                    Your default budget template is used when creating budgets for new months. Changes here won&apos;t affect existing monthly budgets.
+                  </p>
+                  <Button onClick={() => router.push("/budget?default=true")} className="bg-emerald-500 hover:bg-emerald-600">
+                    Edit Default Budget Template
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Budget Management</CardTitle>
+                <CardDescription>Edit budget distributions for specific months.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Edit how your budget is distributed across categories and subcategories for any month.
                   </p>
                   <Button onClick={() => router.push("/budget")} className="bg-emerald-500 hover:bg-emerald-600">
-                    Edit Budget
+                    Manage Monthly Budgets
                   </Button>
                 </div>
               </CardContent>

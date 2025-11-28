@@ -113,6 +113,12 @@ export interface TransactionResponse {
   custom_subcategory?: SubcategoryResponse | null
 }
 
+export interface TransactionCreateResponse extends TransactionResponse {
+  budget_created: boolean
+  budget_year?: number | null
+  budget_month?: number | null
+}
+
 export interface TransactionCreate {
   amount: string | number
   date: string
@@ -170,8 +176,9 @@ export interface BudgetTemplateEntryUpdate {
 export interface BudgetTemplateResponse {
   id: number
   user_id: number
-  month: number
-  year: number
+  month: number | null  // null for default budget
+  year: number | null   // null for default budget
+  is_default: boolean
   total_budget: string
   entries: BudgetTemplateEntryResponse[]
   created_at: string
@@ -179,8 +186,9 @@ export interface BudgetTemplateResponse {
 }
 
 export interface BudgetTemplateCreate {
-  month: number
-  year: number
+  month?: number | null
+  year?: number | null
+  is_default?: boolean
   total_budget: string | number
   entries: BudgetTemplateEntryCreate[]
 }

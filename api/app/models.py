@@ -158,13 +158,14 @@ class UserBudgetSettings(Base):
     user = relationship("User", back_populates="budget_settings")
 
 class BudgetTemplate(Base):
-    """User's monthly budget - budget configuration by category/subcategory for a specific month"""
+    """User's budget template - can be default (month=NULL, year=NULL) or monthly (specific month/year)"""
     __tablename__ = "budget_templates"
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    month = Column(Integer, nullable=False)  # Month number (1-12)
-    year = Column(Integer, nullable=False)  # Year (e.g., 2024)
+    month = Column(Integer, nullable=True)  # NULL for default budget, 1-12 for monthly budgets
+    year = Column(Integer, nullable=True)   # NULL for default budget, year (e.g., 2024) for monthly budgets
+    is_default = Column(Boolean, default=False, nullable=False)
     total_budget = Column(DECIMAL(15, 2), nullable=False)  # Total budget for the month
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -173,7 +174,9 @@ class BudgetTemplate(Base):
     user = relationship("User", back_populates="budget_templates")
     entries = relationship("BudgetTemplateEntry", back_populates="template", cascade="all, delete-orphan")
     
-    # Unique constraint: one budget per user per month/year
+    # Unique constraints:
+    # 1. One monthly budget per user per month/year (where is_default=False)
+    # Note: "One default budget per user" is enforced at the API level
     __table_args__ = (
         UniqueConstraint('user_id', 'year', 'month', name='uq_user_monthly_budget'),
     )
