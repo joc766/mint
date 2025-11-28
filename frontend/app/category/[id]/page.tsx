@@ -28,6 +28,13 @@ export default function CategoryPage() {
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [categoryExpenses, setCategoryExpenses] = useState<TransactionResponse[]>([])
   const [totalSpent, setTotalSpent] = useState(0)
+
+  // Format date string without timezone conversion
+  const formatDateLocal = (dateString: string | Date) => {
+    const dateStr = dateString.toString().substring(0, 10) // "YYYY-MM-DD"
+    const [year, month, day] = dateStr.split('-')
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString()
+  }
   const [categoryBudget, setCategoryBudget] = useState(0)
   const [subcategoryBudgets, setSubcategoryBudgets] = useState<Array<{
     id: number
@@ -433,7 +440,7 @@ export default function CategoryPage() {
                           <div className="text-sm text-muted-foreground">{expense.notes}</div>
                         )}
                         <div className="text-xs text-muted-foreground">
-                          {new Date(expense.date).toLocaleDateString()}
+                          {formatDateLocal(expense.date)}
                         </div>
                       </div>
                       <div className="font-medium">{formatAmount(Math.abs(Number(expense.amount)))}</div>

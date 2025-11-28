@@ -28,6 +28,13 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   const { categories } = useCategories()
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
 
+  // Format date string without timezone conversion
+  const formatDateLocal = (dateString: string | Date) => {
+    const dateStr = dateString.toString().substring(0, 10) // "YYYY-MM-DD"
+    const [year, month, day] = dateStr.split('-')
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString()
+  }
+
   // Fetch subcategories once
   useEffect(() => {
     const fetchSubcategories = async () => {
@@ -207,7 +214,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                     <div className="text-sm text-muted-foreground flex items-center">
                       <span className="mr-2">{getCategoryName(expense.custom_category_id, expense.custom_subcategory_id)}</span>
                       <span>•</span>
-                      <span className="ml-2">{new Date(expense.date).toLocaleDateString()}</span>
+                      <span className="ml-2">{formatDateLocal(expense.date)}</span>
                     </div>
                     {expense.notes && (
                       <div className="text-xs text-muted-foreground mt-1">{expense.notes}</div>
