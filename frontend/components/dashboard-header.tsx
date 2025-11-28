@@ -2,18 +2,15 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Plus, Search, BoxIcon as Bucket } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Search, BoxIcon as Bucket } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { SearchDialog } from "./search-dialog"
-import { AddExpenseDialog } from "./add-expense-dialog"
 import { NotificationsDropdown } from "./notifications-dropdown"
 import { UserDropdown } from "./user-dropdown"
 import { useTheme } from "@/contexts/theme-context"
 
 export function DashboardHeader() {
   const [searchOpen, setSearchOpen] = useState(false)
-  const [addExpenseOpen, setAddExpenseOpen] = useState(false)
   const { theme } = useTheme()
 
   return (
@@ -40,10 +37,6 @@ export function DashboardHeader() {
                 onClick={() => setSearchOpen(true)}
               />
             </div>
-            <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600" onClick={() => setAddExpenseOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Expense
-            </Button>
             <NotificationsDropdown />
             <UserDropdown />
           </div>
@@ -52,7 +45,6 @@ export function DashboardHeader() {
 
       {/* Dialogs */}
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
-      <AddExpenseDialog open={addExpenseOpen} onOpenChange={setAddExpenseOpen} />
     </>
   )
 }
