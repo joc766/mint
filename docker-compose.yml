@@ -42,9 +42,8 @@ services:
     restart: unless-stopped
 
   # Frontend Application
-  # Development mode (default): docker-compose up (or docker-compose up frontend)
-  # Production mode: BUILD_MODE=production RESTART_POLICY=unless-stopped docker-compose up -d --build
-  # Note: When BUILD_MODE=production, target becomes "production" (alias for "runner")
+  # Development mode (default): docker-compose up
+  # Production mode: BUILD_MODE=production docker-compose up --build
   frontend:
     build:
       context: ./frontend
@@ -55,17 +54,16 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     container_name: expense-tracker-app
     ports:
-      - "3000:3000"
-    # volumes:
-      # Mount source code for hot reload (cached for better macOS performance)
-      # - ./frontend:/app:cached
-      # Prevent node_modules and .next from being overwritten by host
-      # - /app/node_modules
-      # - /app/.next
-    # environment:
-      # Enable Next.js file watching in Docker
-      # - WATCHPACK_POLLING=true
-      # - CHOKIDAR_USEPOLLING=true
+      # Dev mode: 3000:3000 (Next.js dev server)
+      # Prod mode: 3000:80 (nginx)
+      - "3000:${FRONTEND_PORT:-3000}"
+    volumes:
+      - ./frontend:/app:cached
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     stdin_open: true
     tty: true
     restart: ${RESTART_POLICY:-no}

@@ -51,7 +51,7 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const handleResultClick = (result: SearchResult) => {
     if (result.type === "category") {
-      router.push(`/category/${result.id}`)
+      router.push(`/category?id=${result.id}`)
     } else if (result.type === "app") {
       router.push(`/merchant/${result.id}`)
     }

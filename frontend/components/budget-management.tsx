@@ -468,7 +468,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
             
             const handleCardClick = () => {
               if (categoryId) {
-                router.push(`/category/${categoryId}`)
+                router.push(`/category?id=${categoryId}`)
               }
             }
 
