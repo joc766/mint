@@ -111,6 +111,7 @@ jobs:
           echo "PLAID_ENV=sandbox" >> $GITHUB_ENV
           echo "BUILD_MODE=production" >> $GITHUB_ENV
           echo "RESTART_POLICY=no" >> $GITHUB_ENV
+          echo "FRONTEND_PORT=80" >> $GITHUB_ENV
       
       - name: Create .env file for Docker Compose
         run: |
