@@ -122,11 +122,12 @@ jobs:
           PLAID_ENV=sandbox
           BUILD_MODE=production
           RESTART_POLICY=no
+          FRONTEND_PORT=80
           EOF
       
       - name: Build and start services (Production Mode)
         run: |
-          BUILD_MODE=production RESTART_POLICY=no docker compose up -d --build
+          BUILD_MODE=production RESTART_POLICY=no FRONTEND_PORT=80 docker compose up -d --build
           echo "Services started in production mode"
       
       - name: Wait for services to be healthy
@@ -153,33 +154,40 @@ jobs:
             exit 1
           fi
           echo "✓ Frontend returns valid HTML"
-      
+
       - name: Verify frontend build mode
         run: |
-          # Check container environment
-          BUILD_CHECK=$(docker compose exec -T frontend printenv NODE_ENV || echo "not_found")
-          echo "Frontend NODE_ENV: $BUILD_CHECK"
-          if [ "$BUILD_CHECK" != "production" ]; then
-            echo "❌ ERROR: Frontend NODE_ENV is not set to production"
+          # Check that nginx is running in the production container
+          NGINX_STATUS=$(docker compose exec -T frontend sh -c "ps aux | grep 'nginx: master process' | grep -v grep" || echo "not_found")
+          if [ "$NGINX_STATUS" = "not_found" ]; then
+            echo "❌ ERROR: Nginx is not running in production container"
+            echo "Container processes:"
+            docker compose exec -T frontend ps aux
             exit 1
           else
-            echo "✓ Frontend NODE_ENV correctly set to production"
+            echo "✓ Nginx is running in production mode"
+            echo "Nginx process: $NGINX_STATUS"
           fi
           
-          # Check that production server is running (node server.js, not pnpm dev)
+          # Verify nginx is serving on port 80
+          NGINX_PORT=$(docker compose exec -T frontend sh -c "netstat -tln | grep ':80 ' || echo 'not_found'")
+          if [ "$NGINX_PORT" = "not_found" ]; then
+            echo "⚠ Warning: Could not confirm nginx is listening on port 80"
+          else
+            echo "✓ Nginx is listening on port 80"
+          fi
+          
+          # Check that development server is NOT running
           LOGS=$(docker compose logs frontend 2>&1)
           if echo "$LOGS" | grep -q "pnpm dev"; then
-            echo "❌ ERROR: Frontend is running development server (pnpm dev) instead of production server"
+            echo "❌ ERROR: Frontend is running development server (pnpm dev) instead of nginx"
             echo "Frontend logs:"
             echo "$LOGS"
             exit 1
-          elif echo "$LOGS" | grep -q "server.js"; then
-            echo "✓ Frontend is running production server (node server.js)"
           else
-            echo "⚠ Warning: Could not confirm which server is running"
-            echo "Frontend logs:"
-            echo "$LOGS"
+            echo "✓ Frontend is not running development server"
           fi
+ 
       
       - name: Show service logs on failure (Production)
         if: failure()
