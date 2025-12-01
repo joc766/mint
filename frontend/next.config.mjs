@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Output configuration for Docker production builds
-  output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
+  // Output configuration - use 'export' for static build, undefined for dev
+  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
+  
+  // Trailing slashes for static export
+  trailingSlash: true,
   
   // Experimental features for better performance
   experimental: {
@@ -11,36 +14,24 @@ const nextConfig = {
   
   // Build optimizations
   eslint: {
-    // In production, you may want to enable linting during builds
-    ignoreDuringBuilds: process.env.NODE_ENV !== 'production',
+    // Enable linting during production builds
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    // In production, you may want to enable type checking
-    ignoreBuildErrors: process.env.NODE_ENV !== 'production',
+    // Enable type checking during production builds
+    ignoreBuildErrors: false,
   },
   
-  // Image optimization (enable in production for better performance)
+  // Image optimization - must be disabled for static export
   images: {
-    unoptimized: process.env.NODE_ENV !== 'production',
-    // Add your image domains if using external images
-    // remotePatterns: [
-    //   {
-    //     protocol: 'https',
-    //     hostname: 'example.com',
-    //   },
-    // ],
+    unoptimized: true,
   },
   
   // Production optimizations
   compress: true,
   poweredByHeader: false,
   
-  // Environment variables
-  env: {
-    CUSTOM_KEY: process.env.CUSTOM_KEY,
-  },
-  
-  // Webpack configuration for better Docker hot reload
+  // Webpack configuration for better Docker hot reload in development
   webpack: (config, { dev, isServer }) => {
     // Enable polling for file changes in Docker environments
     if (dev) {

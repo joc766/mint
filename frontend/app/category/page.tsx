@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useState, useEffect, useMemo, useRef, Suspense } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MonthSelector } from "@/components/month-selector"
@@ -13,11 +13,10 @@ import { useBudget } from "@/contexts/budget-context"
 import { apiClient } from "@/lib/api-client"
 import type { CategoryResponse, TransactionResponse, SubcategoryResponse } from "@/lib/types"
 
-export default function CategoryPage() {
-  const params = useParams()
+function CategoryPageContent() {
+  const searchParams = useSearchParams()
   const router = useRouter()
-  const { id } = params
-  const categoryId = id as string
+  const categoryId = searchParams.get('id')
   const { formatAmount } = useCurrency()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const { categories, fetchCategories } = useCategories()
@@ -55,6 +54,13 @@ export default function CategoryPage() {
     const month = selectedMonth.getMonth() + 1
     return `${year}-${month}`
   }, [selectedMonth])
+
+  // Add validation for missing category ID
+  useEffect(() => {
+    if (!categoryId) {
+      router.push('/') // Redirect to home if no category ID
+    }
+  }, [categoryId, router])
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -201,7 +207,7 @@ export default function CategoryPage() {
       if (!isCorrectMonth || Number(t.amount) >= 0) return false // Only expenses
       
       // Transaction has this category directly
-      if (t.custom_category_id === Number.parseInt(categoryId)) {
+      if (t.custom_category_id === Number.parseInt(categoryId!)) {
         return true
       }
       
@@ -223,7 +229,7 @@ export default function CategoryPage() {
     // Only use budget template if it matches the selected month
     if (budgetTemplate?.entries && budgetTemplate.year === year && budgetTemplate.month === month) {
       // Find category-level budget entry (subcategory_id is null)
-      const parsedCategoryId = Number.parseInt(categoryId)
+      const parsedCategoryId = Number.parseInt(categoryId!)
       const categoryBudgetEntry = budgetTemplate.entries.find(
         (entry) => {
           const entryCategoryId = typeof entry.category_id === "string" 
@@ -458,5 +464,21 @@ export default function CategoryPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+// Wrap in Suspense boundary
+export default function CategoryPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col bg-background">
+        <DashboardHeader />
+        <main className="flex-1 container mx-auto px-4 py-8">
+          <div className="text-center py-12">Loading category...</div>
+        </main>
+      </div>
+    }>
+      <CategoryPageContent />
+    </Suspense>
   )
 }

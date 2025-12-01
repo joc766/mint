@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for Next.js
-# Supports both development and production builds
+# Supports both development and production (static export) builds
 
 # ============================================
 # Dependencies stage
@@ -18,7 +18,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # ============================================
-# Builder stage (for production builds)
+# Builder stage (for production static export)
 # ============================================
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -30,57 +30,36 @@ RUN npm install -g pnpm
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build argument to control build mode
-ARG BUILD_MODE=production
 # Build argument for API URL (must be available at build time for NEXT_PUBLIC_* vars)
-ARG NEXT_PUBLIC_API_URL=http://api:8000
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 # Set NEXT_PUBLIC_API_URL as environment variable during build
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
-# Build the application
-RUN if [ "$BUILD_MODE" = "production" ]; then \
-      pnpm build; \
-    fi
+# Build the application - creates static export in /app/out
+RUN pnpm build
 
 # ============================================
-# Production runner stage
+# Production runner stage - Nginx static server
 # ============================================
-FROM node:20-alpine AS runner
-WORKDIR /app
+FROM nginx:alpine AS production
+WORKDIR /usr/share/nginx/html
 
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
+# Remove default nginx static files
+RUN rm -rf ./*
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Copy static files from builder
+COPY --from=builder /app/out ./
 
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-# Copy the standalone output (includes server.js and all dependencies)
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-# Copy static files
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# Copy public folder (standalone output may not include it)
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# Nginx listens on port 80 (standard)
+EXPOSE 80
 
-USER nextjs
-
-EXPOSE 3000
-
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-CMD ["node", "server.js"]
-
-# Alias for production (allows BUILD_MODE=production to work)
-# This is just an alias - Docker will use the runner stage
-FROM runner AS production
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
 
 # ============================================
 # Development stage
@@ -99,7 +78,6 @@ RUN pnpm install
 
 # Note: We intentionally don't copy source files here in dev mode
 # They will be mounted via volumes for hot reload
-# We only create empty directories for build artifacts
 
 EXPOSE 3000
 
