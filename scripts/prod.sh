@@ -16,13 +16,13 @@ DETACHED="-d"
 RESTART_POLICY="unless-stopped"
 
 for arg in "$@"; do
-    if [ "$arg" = "--no-detach" ]; then
-        DETACHED=""
-        RESTART_POLICY="no"
-        # Remove --no-detach from arguments
-        shift
-        break
-    fi
+  if [ "$arg" = "--no-detach" ]; then
+    DETACHED=""
+    RESTART_POLICY="no"
+    # Remove --no-detach from arguments
+    shift
+    break
+  fi
 done
 
 echo "🏭 Starting services in PRODUCTION mode..."
@@ -31,11 +31,11 @@ echo "   - Mode: ${DETACHED:+DETACHED}${DETACHED:-FOREGROUND}"
 echo "   - Restart: $RESTART_POLICY"
 echo ""
 
-BUILD_MODE=production RESTART_POLICY=$RESTART_POLICY docker-compose up $DETACHED --build "$@"
+BUILD_MODE=production FRONTEND_PORT=80 RESTART_POLICY=$RESTART_POLICY docker compose up $DETACHED --build "$@"
 
 if [ -n "$DETACHED" ]; then
-    echo ""
-    echo "✅ Services started in detached mode"
-    echo "   View logs: docker-compose logs -f"
-    echo "   Stop services: docker-compose down"
+  echo ""
+  echo "✅ Services started in detached mode"
+  echo "   View logs: docker-compose logs -f"
+  echo "   Stop services: docker-compose down"
 fi
