@@ -68,31 +68,42 @@ function CategoryPageContent() {
     }
   }, [isAuthenticated, authLoading, router])
 
-  // Fetch categories and find the current one (only once)
+  // Fetch categories and find the current one
   useEffect(() => {
     const loadCategory = async () => {
+      if (!categoryId) {
+        setIsLoading(false)
+        return
+      }
+      
+      // If categories are empty, fetch them first
       if (categories.length === 0) {
         try {
           await fetchCategories()
+          // After fetching, the categories will update and this effect will re-run
+          return
         } catch (err) {
           console.error("Failed to fetch categories:", err)
           setFetchError("Failed to load category")
+          setIsLoading(false)
           return
         }
       }
       
+      // Now find the category in the loaded categories
       const foundCategory = categories.find((cat) => String(cat.id) === String(categoryId))
       setCategory(foundCategory || null)
       if (!foundCategory && categories.length > 0) {
         setFetchError("Category not found")
+        setIsLoading(false)
+      } else if (foundCategory) {
+        setFetchError(null)
+        // Loading will be set to false by the calculation effect once data is ready
       }
     }
     
-    if (categoryId) {
-      loadCategory()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryId]) // Only depend on categoryId
+    loadCategory()
+  }, [categoryId, categories, fetchCategories])
 
   // Fetch subcategories for this category (only once per category)
   useEffect(() => {
@@ -178,6 +189,11 @@ function CategoryPageContent() {
 
   // Calculate category budget and expenses (only when data changes, not on every render)
   useEffect(() => {
+    // Don't calculate if we don't have a category yet
+    if (!category || !categoryId) {
+      return
+    }
+    
     setIsLoading(true)
     
     // Find budget entries for this category in the current month's budget
@@ -291,7 +307,7 @@ function CategoryPageContent() {
     setSubcategoryBudgets(subcategoryBudgetList)
     
     setIsLoading(false)
-  }, [transactions, monthKey, categoryId, budgetTemplate, subcategories, selectedMonth])
+  }, [transactions, monthKey, categoryId, budgetTemplate, subcategories, selectedMonth, category])
 
   if (authLoading || !isAuthenticated) {
     return null
