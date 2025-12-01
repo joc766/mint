@@ -24,10 +24,12 @@ from api.schemas import (
     TransactionUpdate, LinkTokenCreateRequest, LinkTokenCreateResponse, ExchangeTokenRequest, ExchangeTokenResponse,
     UserBudgetSettingsCreate, UserBudgetSettingsUpdate, UserBudgetSettingsResponse,
     BudgetTemplateResponse, BudgetTemplateCreate, BudgetTemplateUpdate, BudgetTemplateEntryCreate,
-    BudgetComparisonResponse, MonthlyBudgetSummaryResponse
+    BudgetComparisonResponse, MonthlyBudgetSummaryResponse,
+    MassImportRequest, MassImportResponse
 )
 from api.auth import get_current_user, create_access_token, verify_password, get_password_hash
 from api.plaid_service import PlaidService
+from api.import_service import process_mass_import
 
 # Create database tables
 from api.models import Base
@@ -548,6 +550,28 @@ def update_transaction(
     db.commit()
     db.refresh(transaction)
     return transaction
+
+@app.post("/transactions/mass-import", response_model=MassImportResponse)
+def mass_import_transactions(
+    import_request: MassImportRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Mass import transactions from CSV/external data.
+    
+    - Creates accounts as needed based on account_name
+    - Reports unrecognized categories/subcategories (does not fail, just warns)
+    - Auto-creates monthly budgets from default if applicable
+    - Detects and skips duplicate plaid_transaction_ids
+    
+    Request body should contain a list of transactions with:
+    - Required: amount, date, name
+    - Optional: merchant_name, account_name, account_type, account_subtype,
+                plaid_transaction_id, iso_currency_code, pending, transaction_type,
+                category_name, subcategory_name, notes, tags
+    """
+    return process_mass_import(import_request, current_user, db)
 
 # Category management endpoints
 @app.get("/categories/", response_model=List[CategoryResponse])

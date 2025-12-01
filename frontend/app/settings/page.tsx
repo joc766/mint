@@ -13,7 +13,7 @@ import { currencies } from "@/contexts/currency-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useBudget } from "@/contexts/budget-context"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, FileSpreadsheet } from "lucide-react"
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -224,6 +224,27 @@ export default function SettingsPage() {
                   </p>
                   <Button onClick={() => router.push("/budget")} className="bg-emerald-500 hover:bg-emerald-600">
                     Manage Monthly Budgets
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
+                  Import Transactions
+                </CardTitle>
+                <CardDescription>Import transactions from CSV or other sources.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Import multiple transactions at once from a CSV file. Supports Plaid export format
+                    and auto-creates accounts as needed.
+                  </p>
+                  <Button onClick={() => router.push("/import")} className="bg-emerald-500 hover:bg-emerald-600">
+                    Import Transactions
                   </Button>
                 </div>
               </CardContent>

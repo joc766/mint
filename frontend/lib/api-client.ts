@@ -111,6 +111,14 @@ class ApiClient {
   async delete(endpoint: string): Promise<ApiResponse<void>> {
     return this.request<void>(endpoint, { method: "DELETE" })
   }
+
+  // Mass import specific method
+  async massImport<T>(transactions: unknown[]): Promise<ApiResponse<T>> {
+    return this.post<T>("/transactions/mass-import", { transactions })
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL)
+
+// Export the ApiResponse type for use in other files
+export type { ApiResponse }
