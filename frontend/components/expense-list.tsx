@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AddExpenseDialog } from "@/components/add-expense-dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, ChevronRight, ChevronDown, CheckSquare, Square, X, Search } from "lucide-react"
+import { Plus, ChevronRight, ChevronDown, CheckSquare, Square, X, Search, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useCurrency } from "@/contexts/currency-context"
 import { useTransactions } from "@/contexts/transactions-context"
@@ -32,7 +32,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   const [searchQuery, setSearchQuery] = useState("")
   const { formatAmount } = useCurrency()
   const _router = useRouter()
-  const { transactions, isLoading, fetchTransactions, updateTransaction } = useTransactions()
+  const { transactions, isLoading, fetchTransactions, updateTransaction, deleteTransaction } = useTransactions()
   const { categories } = useCategories()
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [subcategoriesByCategory, setSubcategoriesByCategory] = useState<Record<number, SubcategoryResponse[]>>({})
@@ -287,6 +287,27 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     setIsBulkCategorizeOpen(true)
   }
 
+  const handleDeleteTransaction = async (transactionId: number, transactionName: string) => {
+    if (!confirm(`Are you sure you want to delete this transaction?\n\n${transactionName}\n\nThis action cannot be undone.`)) {
+      return
+    }
+
+    const success = await deleteTransaction(transactionId)
+    if (success) {
+      toast({
+        title: "Success",
+        description: "Transaction deleted successfully",
+      })
+      await fetchTransactions()
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to delete transaction",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <>
       <Card>
@@ -522,7 +543,22 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                         )}
                       </div>
                     </div>
-                    <div className="font-medium">{formatAmount(Number(expense.amount))}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="font-medium">{formatAmount(Number(expense.amount))}</div>
+                      {!isBulkMode && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteTransaction(expense.id, expense.merchant_name || expense.name || "Transaction")
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )
               })}
