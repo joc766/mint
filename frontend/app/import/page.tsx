@@ -4,7 +4,15 @@ import { useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ImportFileUpload } from "@/components/import/import-file-upload"
 import { ImportColumnMapper } from "@/components/import/import-column-mapper"
 import { ImportPreview } from "@/components/import/import-preview"
@@ -48,6 +56,7 @@ export default function ImportPage() {
   const [isImporting, setIsImporting] = useState(false)
   const [importResults, setImportResults] = useState<MassImportResponse | null>(null)
   const [showResults, setShowResults] = useState(false)
+  const [expensesArePositive, setExpensesArePositive] = useState(false) // false = expenses are negative (default/system standard)
 
   // Auth check
   useEffect(() => {
@@ -109,6 +118,7 @@ export default function ImportPage() {
     setParsedCSV(null)
     setMappings([])
     setMappedData([])
+    setExpensesArePositive(false)
     setStep("upload")
   }, [])
 
@@ -156,23 +166,37 @@ export default function ImportPage() {
     
     try {
       // Convert mapped data to MassImportTransactionRow format
-      const transactions: MassImportTransactionRow[] = mappedData.map(row => ({
-        amount: row.amount as number,
-        date: row.date as string,
-        name: row.name as string,
-        merchant_name: row.merchant_name as string | null,
-        account_name: row.account_name as string | null,
-        account_type: row.account_type as string | null,
-        account_subtype: row.account_subtype as string | null,
-        plaid_transaction_id: row.plaid_transaction_id as string | null,
-        iso_currency_code: row.iso_currency_code as string | null,
-        pending: row.pending as boolean | undefined,
-        transaction_type: row.transaction_type as string | null,
-        category_name: row.category_name as string | null,
-        subcategory_name: row.subcategory_name as string | null,
-        notes: row.notes as string | null,
-        tags: row.tags as string[] | null,
-      }))
+      // Apply amount conversion based on user's preference
+      const transactions: MassImportTransactionRow[] = mappedData.map(row => {
+        let amount = Number(row.amount) || 0
+        
+        // If expenses are positive in the file, we need to convert them
+        // System expects: expenses = negative, income = positive
+        if (expensesArePositive) {
+          // Positive amounts are expenses → convert to negative
+          // Negative amounts are income → convert to positive
+          amount = -amount
+        }
+        // If expenses are negative (default), keep amounts as-is
+        
+        return {
+          amount,
+          date: row.date as string,
+          name: row.name as string,
+          merchant_name: row.merchant_name as string | null,
+          account_name: row.account_name as string | null,
+          account_type: row.account_type as string | null,
+          account_subtype: row.account_subtype as string | null,
+          plaid_transaction_id: row.plaid_transaction_id as string | null,
+          iso_currency_code: row.iso_currency_code as string | null,
+          pending: row.pending as boolean | undefined,
+          transaction_type: row.transaction_type as string | null,
+          category_name: row.category_name as string | null,
+          subcategory_name: row.subcategory_name as string | null,
+          notes: row.notes as string | null,
+          tags: row.tags as string[] | null,
+        }
+      })
       
       const response = await apiClient.massImport<MassImportResponse>(transactions)
       
@@ -213,7 +237,7 @@ export default function ImportPage() {
     } finally {
       setIsImporting(false)
     }
-  }, [mappedData, toast])
+  }, [mappedData, expensesArePositive, toast])
 
   // Handle done after import
   const handleDone = useCallback(() => {
@@ -264,7 +288,7 @@ export default function ImportPage() {
                   <p className="font-medium text-blue-700 mb-1">CSV Import Instructions</p>
                   <ul className="text-muted-foreground space-y-1">
                     <li>• <strong>Date format:</strong> YYYY-MM-DD (e.g., 2024-01-15)</li>
-                    <li>• <strong>Amount sign:</strong> Negative for expenses, positive for income</li>
+                    <li>• <strong>Amount sign:</strong> System expects negative for expenses, positive for income. You can specify if your file uses positive amounts for expenses during mapping.</li>
                     <li>• <strong>Accounts:</strong> Will be created automatically if not found</li>
                     <li>• <strong>Categories:</strong> Must match existing category names</li>
                   </ul>
@@ -322,6 +346,55 @@ export default function ImportPage() {
                   mappings={mappings}
                   onMappingChange={handleMappingChange}
                 />
+                
+                {/* Amount Sign Configuration */}
+                <Card className="bg-blue-500/5 border-blue-500/20">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Amount Format</CardTitle>
+                    <CardDescription>
+                      Specify how amounts are stored in your import file
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <Label htmlFor="amount-sign">Are expenses stored as positive or negative amounts?</Label>
+                      <Select
+                        value={expensesArePositive ? "positive" : "negative"}
+                        onValueChange={(value) => setExpensesArePositive(value === "positive")}
+                      >
+                        <SelectTrigger id="amount-sign" className="w-full md:w-[400px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="negative">
+                            <div className="flex flex-col">
+                              <span className="font-medium">Negative (System Standard)</span>
+                              <span className="text-xs text-muted-foreground">
+                                Expenses are negative, income is positive
+                              </span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="positive">
+                            <div className="flex flex-col">
+                              <span className="font-medium">Positive</span>
+                              <span className="text-xs text-muted-foreground">
+                                Expenses are positive, income is negative (will be converted)
+                              </span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-muted-foreground">
+                        {expensesArePositive ? (
+                          <>Positive amounts will be converted to negative (expenses), and negative amounts will be converted to positive (income).</>
+                        ) : (
+                          <>Amounts will be imported as-is. The system expects expenses to be negative and income to be positive.</>
+                        )}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+                
                 <div className="flex justify-end gap-3">
                   <Button variant="outline" onClick={handleFileClear}>
                     Cancel
@@ -339,7 +412,11 @@ export default function ImportPage() {
 
             {(step === "preview" || step === "importing") && (
               <>
-                <ImportPreview data={mappedData} mappings={mappings} />
+                <ImportPreview 
+                  data={mappedData} 
+                  mappings={mappings}
+                  expensesArePositive={expensesArePositive}
+                />
                 
                 {mappedData.length > 0 && (
                   <Card className="bg-amber-500/5 border-amber-500/20">

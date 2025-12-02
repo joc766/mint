@@ -9,12 +9,14 @@ interface ImportPreviewProps {
   data: Record<string, unknown>[]
   mappings: ColumnMapping[]
   maxPreviewRows?: number
+  expensesArePositive?: boolean
 }
 
 export function ImportPreview({
   data,
   mappings,
   maxPreviewRows = 10,
+  expensesArePositive = false,
 }: ImportPreviewProps) {
   // Get mapped fields in order
   const mappedFields = useMemo(() => {
@@ -44,7 +46,11 @@ export function ImportPreview({
     if (value === null || value === undefined) return "—"
     
     if (field === "amount") {
-      const num = Number(value)
+      let num = Number(value)
+      // Apply conversion if expenses are positive in the file
+      if (expensesArePositive) {
+        num = -num
+      }
       return isNaN(num) ? String(value) : num.toFixed(2)
     }
     
@@ -100,6 +106,11 @@ export function ImportPreview({
             <CardTitle>Data Preview</CardTitle>
             <CardDescription>
               Showing {Math.min(data.length, maxPreviewRows)} of {data.length} rows
+              {expensesArePositive && (
+                <span className="ml-2 text-amber-600">
+                  (Amounts converted: positive → negative for expenses)
+                </span>
+              )}
             </CardDescription>
           </div>
           {totalErrors === 0 ? (
