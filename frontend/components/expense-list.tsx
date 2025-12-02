@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AddExpenseDialog } from "@/components/add-expense-dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, ChevronRight, ChevronDown, CheckSquare, Square, X } from "lucide-react"
+import { Plus, ChevronRight, ChevronDown, CheckSquare, Square, X, Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import { useCurrency } from "@/contexts/currency-context"
 import { useTransactions } from "@/contexts/transactions-context"
 import { useCategories } from "@/contexts/categories-context"
@@ -28,6 +29,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<number>>(new Set())
   const [isBulkCategorizeOpen, setIsBulkCategorizeOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
   const { formatAmount } = useCurrency()
   const _router = useRouter()
   const { transactions, isLoading, fetchTransactions, updateTransaction } = useTransactions()
@@ -121,22 +123,32 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     })
 
     // Apply filter based on active filter and filter type
-    if (activeFilter === "all") {
-      setFilteredExpenses(sortedExpenses)
-    } else {
+    let filtered = sortedExpenses
+    if (activeFilter !== "all") {
       if (filterType === "category") {
-        const categoryFiltered = sortedExpenses.filter((expense) => {
+        filtered = sortedExpenses.filter((expense) => {
           const categoryName = getCategoryName(expense.custom_category_id, expense.custom_subcategory_id)
           return categoryName === activeFilter
         })
-        setFilteredExpenses(categoryFiltered)
       } else {
         // Filter by merchant
-        const merchantFiltered = sortedExpenses.filter((expense) => expense.merchant_name === activeFilter)
-        setFilteredExpenses(merchantFiltered)
+        filtered = sortedExpenses.filter((expense) => expense.merchant_name === activeFilter)
       }
     }
-  }, [monthTransactions, activeFilter, filterType, getCategoryName])
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter((expense) => {
+        const name = (expense.name || "").toLowerCase()
+        const merchant = (expense.merchant_name || "").toLowerCase()
+        const notes = (expense.notes || "").toLowerCase()
+        return name.includes(query) || merchant.includes(query) || notes.includes(query)
+      })
+    }
+
+    setFilteredExpenses(filtered)
+  }, [monthTransactions, activeFilter, filterType, getCategoryName, searchQuery])
 
   // Get categories from transactions for the selected month (using string-based date comparison)
   const categoriesFromTransactions = useMemo(() => {
@@ -328,8 +340,19 @@ export function ExpenseList({ selectedMonth = new Date() }) {
         </CardHeader>
 
         <div className="px-6">
-          <div className="flex justify-between items-center mb-4">
-            <Tabs defaultValue="all" value={activeFilter} onValueChange={handleFilterChange} className="flex-1">
+          <div className="mb-4">
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search transactions by name, merchant, or notes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="flex justify-between items-center">
+              <Tabs defaultValue="all" value={activeFilter} onValueChange={handleFilterChange} className="flex-1">
               <TabsList className="w-full justify-start overflow-x-auto">
                 <TabsTrigger value="all" className="px-4">
                   All
@@ -363,6 +386,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                 <DropdownMenuItem onClick={() => handleFilterTypeChange("merchant")}>Merchant</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
           </div>
         </div>
 
@@ -429,7 +453,19 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                               onValueChange={(value) => handleCategoryChange(expense.id, value)}
                             >
                               <SelectTrigger className="h-8 text-xs w-[140px]">
-                                <SelectValue placeholder="Category" />
+                                {currentCategoryId ? (() => {
+                                  const cat = categories.find((c) => c.id === currentCategoryId)
+                                  return cat ? (
+                                    <span className="flex items-center text-foreground">
+                                      {cat.icon && <span className="mr-1">{cat.icon}</span>}
+                                      <span>{cat.name}</span>
+                                    </span>
+                                  ) : (
+                                    <SelectValue placeholder="Category" />
+                                  )
+                                })() : (
+                                  <SelectValue placeholder="Category" />
+                                )}
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="__clear__">
@@ -437,7 +473,10 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                                 </SelectItem>
                                 {categories.map((category) => (
                                   <SelectItem key={category.id} value={String(category.id)}>
-                                    {category.name}
+                                    <span className="flex items-center">
+                                      {category.icon && <span className="mr-2">{category.icon}</span>}
+                                      <span>{category.name}</span>
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -448,7 +487,22 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                               disabled={!currentCategoryId}
                             >
                               <SelectTrigger className="h-8 text-xs w-[140px]">
-                                <SelectValue placeholder="Subcategory" />
+                                {currentSubcategoryId ? (() => {
+                                  const sub = availableSubcategories.find((s) => {
+                                    const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+                                    return sId === currentSubcategoryId
+                                  })
+                                  return sub ? (
+                                    <span className="flex items-center text-foreground">
+                                      {sub.icon && <span className="mr-1">{sub.icon}</span>}
+                                      <span>{sub.name}</span>
+                                    </span>
+                                  ) : (
+                                    <SelectValue placeholder="Subcategory" />
+                                  )
+                                })() : (
+                                  <SelectValue placeholder="Subcategory" />
+                                )}
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="__clear__">
@@ -456,7 +510,10 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                                 </SelectItem>
                                 {availableSubcategories.map((subcategory) => (
                                   <SelectItem key={subcategory.id} value={String(subcategory.id)}>
-                                    {subcategory.name}
+                                    <span className="flex items-center">
+                                      {subcategory.icon && <span className="mr-2">{subcategory.icon}</span>}
+                                      <span>{subcategory.name}</span>
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
