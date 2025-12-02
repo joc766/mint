@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AddExpenseDialog } from "@/components/add-expense-dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, ChevronRight, ChevronDown, CheckSquare, Square, X, Search, Trash2 } from "lucide-react"
+import { Plus, ChevronRight, ChevronDown, CheckSquare, Square, X, Search, Trash2, ArrowUp, ArrowDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useCurrency } from "@/contexts/currency-context"
 import { useTransactions } from "@/contexts/transactions-context"
@@ -30,6 +30,8 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<number>>(new Set())
   const [isBulkCategorizeOpen, setIsBulkCategorizeOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [sortBy, setSortBy] = useState<"date" | "amount">("date")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const { formatAmount } = useCurrency()
   const _router = useRouter()
   const { transactions, isLoading, fetchTransactions, updateTransaction, deleteTransaction } = useTransactions()
@@ -117,9 +119,25 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   }, [transactions, selectedMonth])
 
   useEffect(() => {
-    // Sort by date (newest first)
+    // Sort based on selected sort option and direction
     const sortedExpenses = [...monthTransactions].sort((a, b) => {
-      return new Date(b.date).getTime() - new Date(a.date).getTime()
+      let comparison = 0
+      
+      if (sortBy === "date") {
+        // Sort by date
+        const dateA = new Date(a.date).getTime()
+        const dateB = new Date(b.date).getTime()
+        comparison = dateB - dateA // Default: newest first (desc)
+      } else {
+        // Sort by actual amount value (not absolute)
+        // This will naturally group: positive values together, negative values together
+        const amountA = Number(a.amount) || 0
+        const amountB = Number(b.amount) || 0
+        comparison = amountB - amountA // Default: largest positive first, then most negative (desc)
+      }
+      
+      // Reverse if ascending
+      return sortDirection === "asc" ? -comparison : comparison
     })
 
     // Apply filter based on active filter and filter type
@@ -148,7 +166,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     }
 
     setFilteredExpenses(filtered)
-  }, [monthTransactions, activeFilter, filterType, getCategoryName, searchQuery])
+  }, [monthTransactions, activeFilter, filterType, getCategoryName, searchQuery, sortBy, sortDirection])
 
   // Get categories from transactions for the selected month (using string-based date comparison)
   const categoriesFromTransactions = useMemo(() => {
@@ -372,41 +390,65 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                 className="pl-9"
               />
             </div>
-            <div className="flex justify-between items-center">
-              <Tabs defaultValue="all" value={activeFilter} onValueChange={handleFilterChange} className="flex-1">
-              <TabsList className="w-full justify-start overflow-x-auto">
-                <TabsTrigger value="all" className="px-4">
-                  All
-                </TabsTrigger>
-                {filterType === "category"
-                  ? categoriesFromTransactions.slice(0, 5).map((category) => (
-                      <TabsTrigger key={category.id} value={category.name} className="px-4">
-                        {category.name}
-                      </TabsTrigger>
-                    ))
-                  : Array.from(new Set(monthTransactions.map((t) => t.merchant_name)))
-                      .filter((merchant): merchant is string => !!merchant)
-                      .slice(0, 5)
-                      .map((merchant) => (
-                        <TabsTrigger key={merchant} value={merchant} className="px-4">
-                          {merchant || "Unknown"}
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+              <Tabs defaultValue="all" value={activeFilter} onValueChange={handleFilterChange} className="flex-1 min-w-0">
+                <TabsList className="w-full justify-start overflow-x-auto">
+                  <TabsTrigger value="all" className="px-4">
+                    All
+                  </TabsTrigger>
+                  {filterType === "category"
+                    ? categoriesFromTransactions.slice(0, 5).map((category) => (
+                        <TabsTrigger key={category.id} value={category.name} className="px-4">
+                          {category.name}
                         </TabsTrigger>
-                      ))}
-              </TabsList>
-            </Tabs>
+                      ))
+                    : Array.from(new Set(monthTransactions.map((t) => t.merchant_name)))
+                        .filter((merchant): merchant is string => !!merchant)
+                        .slice(0, 5)
+                        .map((merchant) => (
+                          <TabsTrigger key={merchant} value={merchant} className="px-4">
+                            {merchant || "Unknown"}
+                          </TabsTrigger>
+                        ))}
+                </TabsList>
+              </Tabs>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="ml-2 bg-transparent">
-                  Filter by: {filterType === "category" ? "Category" : "Merchant"}
-                  <ChevronDown className="ml-2 h-4 w-4" />
+              <div className="flex gap-2 flex-shrink-0">
+                <Select value={sortBy} onValueChange={(value: "date" | "amount") => setSortBy(value)}>
+                  <SelectTrigger className="w-[130px] bg-transparent">
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Date</SelectItem>
+                    <SelectItem value="amount">Amount</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                  className="bg-transparent px-2"
+                  title={sortDirection === "asc" ? "Ascending" : "Descending"}
+                >
+                  {sortDirection === "asc" ? (
+                    <ArrowUp className="h-4 w-4" />
+                  ) : (
+                    <ArrowDown className="h-4 w-4" />
+                  )}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleFilterTypeChange("category")}>Category</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleFilterTypeChange("merchant")}>Merchant</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="bg-transparent">
+                      Filter: {filterType === "category" ? "Category" : "Merchant"}
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleFilterTypeChange("category")}>Category</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleFilterTypeChange("merchant")}>Merchant</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
         </div>
