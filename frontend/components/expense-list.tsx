@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AddExpenseDialog } from "@/components/add-expense-dialog"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, ChevronRight, ChevronDown, CheckSquare, Square, X, Search, Trash2, ArrowUp, ArrowDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useCurrency } from "@/contexts/currency-context"
@@ -25,8 +24,9 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   const [isCategorizeOpen, setIsCategorizeOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponse | null>(null)
   const [filteredExpenses, setFilteredExpenses] = useState<TransactionResponse[]>([])
-  const [activeFilter, setActiveFilter] = useState("all")
-  const [filterType, setFilterType] = useState("category")
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null)
+  const [activeMerchantFilter, setActiveMerchantFilter] = useState<string | null>(null)
+  const [activeTransactionTypeFilter, setActiveTransactionTypeFilter] = useState<string | null>(null)
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<number>>(new Set())
   const [isBulkCategorizeOpen, setIsBulkCategorizeOpen] = useState(false)
@@ -141,23 +141,28 @@ export function ExpenseList({ selectedMonth = new Date() }) {
       return sortDirection === "asc" ? -comparison : comparison
     })
 
-    // Apply filter based on active filter and filter type
+    // Apply all active filters with AND logic
     let filtered = sortedExpenses
-    if (activeFilter !== "all") {
-      if (filterType === "category") {
-        filtered = sortedExpenses.filter((expense) => {
-          const categoryName = getCategoryName(expense.custom_category_id, expense.custom_subcategory_id)
-          return categoryName === activeFilter
-        })
-      } else if (filterType === "transaction_type") {
-        filtered = sortedExpenses.filter((expense) => {
-          const transactionType = expense.transaction_type ? expense.transaction_type : "Unknown"
-          return capitalize(transactionType) === activeFilter
-        })
-      } else {
-        // Filter by merchant
-        filtered = sortedExpenses.filter((expense) => expense.merchant_name === activeFilter)
-      }
+    
+    // Apply category filter
+    if (activeCategoryFilter) {
+      filtered = filtered.filter((expense) => {
+        const categoryName = getCategoryName(expense.custom_category_id, expense.custom_subcategory_id)
+        return categoryName === activeCategoryFilter
+      })
+    }
+    
+    // Apply merchant filter
+    if (activeMerchantFilter) {
+      filtered = filtered.filter((expense) => expense.merchant_name === activeMerchantFilter)
+    }
+    
+    // Apply transaction type filter
+    if (activeTransactionTypeFilter) {
+      filtered = filtered.filter((expense) => {
+        const transactionType = expense.transaction_type ? capitalize(expense.transaction_type) : "Unknown"
+        return transactionType === activeTransactionTypeFilter
+      })
     }
 
     // Apply search filter
@@ -172,7 +177,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     }
 
     setFilteredExpenses(filtered)
-  }, [monthTransactions, activeFilter, filterType, getCategoryName, searchQuery, sortBy, sortDirection])
+  }, [monthTransactions, activeCategoryFilter, activeMerchantFilter, activeTransactionTypeFilter, getCategoryName, searchQuery, sortBy, sortDirection])
 
   // Get categories from transactions for the selected month (using string-based date comparison)
   const categoriesFromTransactions = useMemo(() => {
@@ -191,14 +196,24 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     ).map((name) => ({ id: name.toLowerCase(), name }))
   }, [monthTransactions,])
 
+  const merchantsFromTransactions = useMemo(() => {
+    return Array.from(
+      new Set(
+        monthTransactions.map((t) => t.merchant_name).filter((merchant): merchant is string => !!merchant)
+      )
+    ).map((name) => ({ id: name.toLowerCase(), name }))
+  }, [monthTransactions])
 
-  const handleFilterChange = (value: string) => {
-    setActiveFilter(value)
+  const handleCategoryFilterChange = (value: string) => {
+    setActiveCategoryFilter(value === "__clear__" ? null : value)
   }
 
-  const handleFilterTypeChange = (type: string) => {
-    setFilterType(type)
-    setActiveFilter("all")
+  const handleMerchantFilterChange = (value: string) => {
+    setActiveMerchantFilter(value === "__clear__" ? null : value)
+  }
+
+  const handleTransactionTypeFilterChange = (value: string) => {
+    setActiveTransactionTypeFilter(value === "__clear__" ? null : value)
   }
 
   const toggleBulkMode = () => {
@@ -430,37 +445,82 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                 className="pl-9"
               />
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-              <Tabs defaultValue="all" value={activeFilter} onValueChange={handleFilterChange} className="flex-1 min-w-0">
-                <TabsList className="w-full justify-start overflow-x-auto">
-                  <TabsTrigger value="all" className="px-4">
-                    All
-                  </TabsTrigger>
-                  {filterType === "category"
-                    ? categoriesFromTransactions.slice(0, 5).map((category) => (
-                      <TabsTrigger key={category.id} value={category.name} className="px-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2 items-center">
+                <Select 
+                  value={activeCategoryFilter || "__clear__"} 
+                  onValueChange={handleCategoryFilterChange}
+                >
+                  <SelectTrigger className="w-[160px] bg-transparent">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__clear__">
+                      <span className="text-muted-foreground">All Categories</span>
+                    </SelectItem>
+                    {categoriesFromTransactions.map((category) => (
+                      <SelectItem key={category.id} value={category.name}>
                         {category.name}
-                      </TabsTrigger>
-                    ))
-                    : filterType === "transaction_type"
-                      ? transactionTypesFromTransactions
-                        .slice(0, 5)
-                        .map((transaction_type) => (
-                          <TabsTrigger key={transaction_type.id} value={transaction_type.name} className="x-4">
-                            {transaction_type.name}
-                          </TabsTrigger>
-                        ))
-                      : Array.from(new Set(monthTransactions.map((t) => t.merchant_name)))
-                        .filter((merchant): merchant is string => !!merchant)
-                        .slice(0, 5)
-                        .map((merchant) => (
-                          <TabsTrigger key={merchant} value={merchant} className="px-4">
-                            {merchant || "Unknown"}
-                          </TabsTrigger>
-                        ))}
-                </TabsList>
-              </Tabs>
-
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Select 
+                  value={activeMerchantFilter || "__clear__"} 
+                  onValueChange={handleMerchantFilterChange}
+                >
+                  <SelectTrigger className="w-[160px] bg-transparent">
+                    <SelectValue placeholder="Merchant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__clear__">
+                      <span className="text-muted-foreground">All Merchants</span>
+                    </SelectItem>
+                    {merchantsFromTransactions.map((merchant) => (
+                      <SelectItem key={merchant.id} value={merchant.name}>
+                        {merchant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Select 
+                  value={activeTransactionTypeFilter || "__clear__"} 
+                  onValueChange={handleTransactionTypeFilterChange}
+                >
+                  <SelectTrigger className="w-[160px] bg-transparent">
+                    <SelectValue placeholder="Transaction Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__clear__">
+                      <span className="text-muted-foreground">All Types</span>
+                    </SelectItem>
+                    {transactionTypesFromTransactions.map((transactionType) => (
+                      <SelectItem key={transactionType.id} value={transactionType.name}>
+                        {transactionType.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {(activeCategoryFilter || activeMerchantFilter || activeTransactionTypeFilter) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setActiveCategoryFilter(null)
+                      setActiveMerchantFilter(null)
+                      setActiveTransactionTypeFilter(null)
+                    }}
+                    className="bg-transparent"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+              
               <div className="flex gap-2 flex-shrink-0">
                 <Select value={sortBy} onValueChange={(value: "date" | "amount") => setSortBy(value)}>
                   <SelectTrigger className="w-[130px] bg-transparent">
@@ -484,19 +544,6 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                     <ArrowDown className="h-4 w-4" />
                   )}
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="bg-transparent">
-                      Filter: {filterType === "category" ? "Category" : filterType === "transaction_type" ? "Transaction Type" : "Merchant"}
-                      <ChevronDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleFilterTypeChange("category")}>Category</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleFilterTypeChange("merchant")}>Merchant</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleFilterTypeChange("transaction_type")}>Transaction Type</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </div>
           </div>
@@ -683,7 +730,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
           ) : (
             <div className="text-center py-6 text-muted-foreground">
               {transactions.length > 0
-                ? `No expenses found for ${filterType === "category" ? "this category" : "transaction_type" ? "this transaction type" : "this merchant"}`
+                ? `No transactions found matching the selected filters`
                 : `No transactions for ${selectedMonth.toLocaleString("default", { month: "long", year: "numeric" })}`}
             </div>
           )}
