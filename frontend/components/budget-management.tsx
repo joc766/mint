@@ -339,23 +339,33 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
     setActiveView(view)
   }
 
-  // Calculate total budget and spending summary with proper number conversion
-  const totalBudget = budgetTemplate?.total_budget ? Number(budgetTemplate.total_budget) || 0 : 0
+  // Calculate total income and spending summary with proper number conversion
   // Extract year-month from ISO date string to avoid timezone issues
-  // Filter by transaction_type === "expense" to match expense-summary.tsx
   const monthTransactionsForSummary = transactions.filter((t) => {
     const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
     const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
-    return dateStr === selectedYearMonth && t.transaction_type === "expense" // Only expenses
+    return dateStr === selectedYearMonth
   })
-  const totalSpent = monthTransactionsForSummary.reduce((sum, t) => {
+  
+  // Calculate Total Income from income transactions
+  const incomeTransactions = monthTransactionsForSummary.filter((t) => t.transaction_type === "income")
+  const totalIncome = incomeTransactions.reduce((sum, t) => {
     const amount = Math.abs(Number(t.amount) || 0)
     return isNaN(amount) ? sum : sum + amount
   }, 0)
-  const totalRemaining = totalBudget - totalSpent
+  
+  // Calculate Total Spent from expense transactions
+  const expenseTransactions = monthTransactionsForSummary.filter((t) => t.transaction_type === "expense")
+  const totalSpent = expenseTransactions.reduce((sum, t) => {
+    const amount = Math.abs(Number(t.amount) || 0)
+    return isNaN(amount) ? sum : sum + amount
+  }, 0)
+  
+  // Remaining = Total Income - Total Spent
+  const totalRemaining = totalIncome - totalSpent
   const safeTotalRemaining = isNaN(totalRemaining) ? 0 : totalRemaining
-  const totalPercentUsed = totalBudget > 0 && !isNaN(totalBudget) && !isNaN(totalSpent) 
-    ? Math.min(Math.round((totalSpent / totalBudget) * 100), 100) 
+  const totalPercentUsed = totalIncome > 0 && !isNaN(totalIncome) && !isNaN(totalSpent) 
+    ? Math.min(Math.round((totalSpent / totalIncome) * 100), 100) 
     : 0
 
   // Check if budget exists for selected month
@@ -387,8 +397,8 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
           <CardContent className="pt-6">
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">Total Budget</p>
-                <p className="text-2xl font-bold">{formatAmount(totalBudget)}</p>
+                <p className="text-sm text-muted-foreground">Total Income</p>
+                <p className="text-2xl font-bold">{formatAmount(totalIncome)}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Spent</p>
