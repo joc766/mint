@@ -150,7 +150,10 @@ export function ExpenseList({ selectedMonth = new Date() }) {
           return categoryName === activeFilter
         })
       } else if (filterType === "transaction_type") {
-        filtered = sortedExpenses.filter((expense) => expense.transaction_type === activeFilter)
+        filtered = sortedExpenses.filter((expense) => {
+          const transactionType = expense.transaction_type ? expense.transaction_type : "Unknown"
+          return capitalize(transactionType) === activeFilter
+        })
       } else {
         // Filter by merchant
         filtered = sortedExpenses.filter((expense) => expense.merchant_name === activeFilter)
@@ -179,6 +182,15 @@ export function ExpenseList({ selectedMonth = new Date() }) {
       )
     ).map((name) => ({ id: name.toLowerCase(), name }))
   }, [monthTransactions, getCategoryName])
+
+  const transactionTypesFromTransactions = useMemo(() => {
+    return Array.from(
+      new Set(
+        monthTransactions.map((t) => t.transaction_type ? capitalize(t.transaction_type) : "Unknown")
+      )
+    ).map((name) => ({ id: name.toLowerCase(), name }))
+  }, [monthTransactions,])
+
 
   const handleFilterChange = (value: string) => {
     setActiveFilter(value)
@@ -431,12 +443,11 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                       </TabsTrigger>
                     ))
                     : filterType === "transaction_type"
-                      ? Array.from(new Set(monthTransactions.map((t) => t.transaction_type)))
-                        .filter((transaction_type): transaction_type is string => !!transaction_type)
+                      ? transactionTypesFromTransactions
                         .slice(0, 5)
                         .map((transaction_type) => (
-                          <TabsTrigger key={transaction_type} value={transaction_type} className="px-4">
-                            {capitalize(transaction_type) || "Unknown"}
+                          <TabsTrigger key={transaction_type.id} value={transaction_type.name} className="x-4">
+                            {transaction_type.name}
                           </TabsTrigger>
                         ))
                       : Array.from(new Set(monthTransactions.map((t) => t.merchant_name)))
@@ -568,7 +579,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="__clear__">
-                                  <span className="text-muted-foreground">None</span>
+                                  <span className="text-muted-foreground">Unknown</span>
                                 </SelectItem>
                                 <SelectItem value="expense">Expense</SelectItem>
                                 <SelectItem value="income">Income</SelectItem>
@@ -672,7 +683,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
           ) : (
             <div className="text-center py-6 text-muted-foreground">
               {transactions.length > 0
-                ? `No expenses found for ${filterType === "category" ? "this category" : "this merchant"}`
+                ? `No expenses found for ${filterType === "category" ? "this category" : "transaction_type" ? "this transaction type" : "this merchant"}`
                 : `No transactions for ${selectedMonth.toLocaleString("default", { month: "long", year: "numeric" })}`}
             </div>
           )}
