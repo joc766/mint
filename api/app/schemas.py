@@ -182,6 +182,7 @@ class TransactionCreateResponse(TransactionResponse):
     budget_month: Optional[int] = None
 
 class TransactionUpdate(BaseModel):
+    transaction_type: Optional[str] = None
     custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None
     notes: Optional[str] = None

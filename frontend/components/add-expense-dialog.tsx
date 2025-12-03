@@ -32,6 +32,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Please enter a name"),
   date: z.date(),
   merchant_name: z.string().optional(),
+  transaction_type: z.enum(["expense", "income", "transfer"]).default("expense"),
   category_id: z.string().optional(),
   subcategory_id: z.string().optional(),
   notes: z.string().optional(),
@@ -53,6 +54,7 @@ export function AddExpenseDialog({
       name: "",
       date: defaultDate || new Date(),
       merchant_name: "",
+      transaction_type: "expense",
       category_id: "",
       subcategory_id: "",
       notes: "",
@@ -104,38 +106,53 @@ export function AddExpenseDialog({
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     // Determine category_id and subcategory_id based on selection
+    // Only expenses can have categories
     let custom_category_id: number | null = null
     let custom_subcategory_id: number | null = null
 
-    if (values.subcategory_id && values.subcategory_id !== "") {
-      // If subcategory is selected, get its parent category_id
-      const subcategory = subcategories.find((s) => {
-        const sId = typeof s.id === "string" ? s.id : String(s.id)
-        return sId === values.subcategory_id
-      })
-      if (subcategory) {
-        custom_subcategory_id = typeof subcategory.id === "string" 
-          ? Number.parseInt(subcategory.id, 10) 
-          : subcategory.id
-        custom_category_id = typeof subcategory.category_id === "string" 
-          ? Number.parseInt(subcategory.category_id, 10) 
-          : subcategory.category_id
+    if (values.transaction_type === "expense") {
+      if (values.subcategory_id && values.subcategory_id !== "") {
+        // If subcategory is selected, get its parent category_id
+        const subcategory = subcategories.find((s) => {
+          const sId = typeof s.id === "string" ? s.id : String(s.id)
+          return sId === values.subcategory_id
+        })
+        if (subcategory) {
+          custom_subcategory_id = typeof subcategory.id === "string" 
+            ? Number.parseInt(subcategory.id, 10) 
+            : subcategory.id
+          custom_category_id = typeof subcategory.category_id === "string" 
+            ? Number.parseInt(subcategory.category_id, 10) 
+            : subcategory.category_id
+        }
+      } else if (values.category_id && values.category_id !== "") {
+        // If only category is selected (no subcategory)
+        custom_category_id = Number.parseInt(values.category_id)
+        custom_subcategory_id = null
       }
-    } else if (values.category_id && values.category_id !== "") {
-      // If only category is selected (no subcategory)
-      custom_category_id = Number.parseInt(values.category_id)
-      custom_subcategory_id = null
     }
 
-    // Make amount negative for expenses
-    const expenseAmount = -Math.abs(values.amount)
+    // Determine amount sign based on transaction type
+    let transactionAmount: number
+    if (values.transaction_type === "expense") {
+      // Expenses are negative
+      transactionAmount = -Math.abs(values.amount)
+    } else if (values.transaction_type === "income") {
+      // Income is positive
+      transactionAmount = Math.abs(values.amount)
+    } else {
+      // Transfers can be positive or negative depending on direction
+      // For now, we'll use the sign of the amount as entered
+      transactionAmount = values.amount
+    }
 
     const result = await createTransaction({
       account_id: null,
-      amount: expenseAmount,
+      amount: transactionAmount,
       name: values.name,
       date: values.date.toISOString().split("T")[0],
       merchant_name: values.merchant_name || null,
+      transaction_type: values.transaction_type,
       custom_category_id,
       custom_subcategory_id,
       notes: values.notes || null,
@@ -179,11 +196,37 @@ export function AddExpenseDialog({
     }}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Add New Expense</DialogTitle>
-          <DialogDescription>Enter the details of your expense below.</DialogDescription>
+          <DialogTitle>Add New Transaction</DialogTitle>
+          <DialogDescription>Enter the details of your transaction below.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <FormField
+              control={form.control}
+              name="transaction_type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Transaction Type</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="expense">Expense</SelectItem>
+                      <SelectItem value="income">Income</SelectItem>
+                      <SelectItem value="transfer">Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="amount"
@@ -215,13 +258,14 @@ export function AddExpenseDialog({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="category_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category (Optional)</FormLabel>
+            {form.watch("transaction_type") === "expense" && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="category_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category (Optional)</FormLabel>
                     <Select
                       value={field.value || undefined}
                       onValueChange={(value) => {
@@ -339,11 +383,12 @@ export function AddExpenseDialog({
                         )}
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             <FormField
               control={form.control}
@@ -388,7 +433,7 @@ export function AddExpenseDialog({
                 Cancel
               </Button>
               <Button type="submit" className="bg-emerald-500 hover:bg-emerald-600">
-                Add Expense
+                Add Transaction
               </Button>
             </DialogFooter>
           </form>

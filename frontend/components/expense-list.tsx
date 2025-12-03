@@ -16,6 +16,7 @@ import type { TransactionResponse, SubcategoryResponse } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiClient } from "@/lib/api-client"
+import { capitalize } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { BulkCategorizeDialog } from "@/components/bulk-categorize-dialog"
 
@@ -78,7 +79,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`
     const lastDay = new Date(year, month, 0).getDate() // Get last day of month
     const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-    
+
     fetchTransactions({
       start_date: startDate,
       end_date: endDate,
@@ -93,8 +94,8 @@ export function ExpenseList({ selectedMonth = new Date() }) {
         return sId === subcategoryId
       })
       if (subcategory) {
-        const categoryIdFromSub = typeof subcategory.category_id === "string" 
-          ? Number.parseInt(subcategory.category_id, 10) 
+        const categoryIdFromSub = typeof subcategory.category_id === "string"
+          ? Number.parseInt(subcategory.category_id, 10)
           : subcategory.category_id
         const category = categories.find((cat) => cat.id === categoryIdFromSub)
         return category ? `${category.name} - ${subcategory.name}` : subcategory.name
@@ -122,7 +123,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     // Sort based on selected sort option and direction
     const sortedExpenses = [...monthTransactions].sort((a, b) => {
       let comparison = 0
-      
+
       if (sortBy === "date") {
         // Sort by date
         const dateA = new Date(a.date).getTime()
@@ -135,7 +136,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
         const amountB = Number(b.amount) || 0
         comparison = amountB - amountA // Default: largest positive first, then most negative (desc)
       }
-      
+
       // Reverse if ascending
       return sortDirection === "asc" ? -comparison : comparison
     })
@@ -148,6 +149,8 @@ export function ExpenseList({ selectedMonth = new Date() }) {
           const categoryName = getCategoryName(expense.custom_category_id, expense.custom_subcategory_id)
           return categoryName === activeFilter
         })
+      } else if (filterType === "transaction_type") {
+        filtered = sortedExpenses.filter((expense) => expense.transaction_type === activeFilter)
       } else {
         // Filter by merchant
         filtered = sortedExpenses.filter((expense) => expense.merchant_name === activeFilter)
@@ -254,8 +257,8 @@ export function ExpenseList({ selectedMonth = new Date() }) {
       })
       if (subcategory) {
         custom_subcategory_id = typeof subcategory.id === "string" ? Number.parseInt(subcategory.id, 10) : subcategory.id
-        custom_category_id = typeof subcategory.category_id === "string" 
-          ? Number.parseInt(subcategory.category_id, 10) 
+        custom_category_id = typeof subcategory.category_id === "string"
+          ? Number.parseInt(subcategory.category_id, 10)
           : subcategory.category_id
       }
     } else if (categoryId) {
@@ -398,11 +401,20 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                   </TabsTrigger>
                   {filterType === "category"
                     ? categoriesFromTransactions.slice(0, 5).map((category) => (
-                        <TabsTrigger key={category.id} value={category.name} className="px-4">
-                          {category.name}
-                        </TabsTrigger>
-                      ))
-                    : Array.from(new Set(monthTransactions.map((t) => t.merchant_name)))
+                      <TabsTrigger key={category.id} value={category.name} className="px-4">
+                        {category.name}
+                      </TabsTrigger>
+                    ))
+                    : filterType === "transaction_type"
+                      ? Array.from(new Set(monthTransactions.map((t) => t.transaction_type)))
+                        .filter((transaction_type): transaction_type is string => !!transaction_type)
+                        .slice(0, 5)
+                        .map((transaction_type) => (
+                          <TabsTrigger key={transaction_type} value={transaction_type} className="px-4">
+                            {capitalize(transaction_type) || "Unknown"}
+                          </TabsTrigger>
+                        ))
+                      : Array.from(new Set(monthTransactions.map((t) => t.merchant_name)))
                         .filter((merchant): merchant is string => !!merchant)
                         .slice(0, 5)
                         .map((merchant) => (
@@ -439,13 +451,14 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="bg-transparent">
-                      Filter: {filterType === "category" ? "Category" : "Merchant"}
+                      Filter: {filterType === "category" ? "Category" : filterType === "transaction_type" ? "Transaction Type" : "Merchant"}
                       <ChevronDown className="ml-2 h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => handleFilterTypeChange("category")}>Category</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleFilterTypeChange("merchant")}>Merchant</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleFilterTypeChange("transaction_type")}>Transaction Type</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -462,18 +475,17 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                 const isSelected = selectedTransactionIds.has(expense.id)
                 const currentCategoryId = expense.custom_category_id
                 const currentSubcategoryId = expense.custom_subcategory_id
-                const availableSubcategories = currentCategoryId 
+                const availableSubcategories = currentCategoryId
                   ? subcategoriesByCategory[currentCategoryId] || []
                   : []
 
                 return (
                   <div
                     key={expense.id}
-                    className={`flex items-center justify-between border-b pb-4 p-2 rounded-lg -mx-2 transition-colors ${
-                      isBulkMode 
-                        ? `cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${isSelected ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500" : ""}`
-                        : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-                    }`}
+                    className={`flex items-center justify-between border-b pb-4 p-2 rounded-lg -mx-2 transition-colors ${isBulkMode
+                      ? `cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${isSelected ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500" : ""}`
+                      : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                      }`}
                     onClick={() => handleTransactionClick(expense)}
                   >
                     <div className="flex items-center space-x-4 flex-1">

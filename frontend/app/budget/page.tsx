@@ -13,6 +13,7 @@ import { useCategories } from "@/contexts/categories-context"
 import { useBudget } from "@/contexts/budget-context"
 import { useCurrency } from "@/contexts/currency-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useTransactions } from "@/contexts/transactions-context"
 import { apiClient } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 import type { BudgetTemplateEntryUpdate, BudgetTemplateCreate, SubcategoryResponse, CategoryResponse, CategoryCreate, SubcategoryCreate } from "@/lib/types"
@@ -56,6 +57,7 @@ function BudgetPageContent() {
   const { formatAmount } = useCurrency()
   const { categories, isLoading: categoriesLoading, fetchCategories } = useCategories()
   const { budgetSettings, fetchBudgetSettings, fetchMonthlyBudget, updateMonthlyBudget, createMonthlyBudget, defaultBudget, fetchDefaultBudget, copyDefaultToMonth, resetMonthToDefault, updateDefaultBudget, createDefaultBudget } = useBudget()
+  const { transactions, fetchTransactions } = useTransactions()
   const { toast } = useToast()
   
   // Check if we're in default budget mode
@@ -195,6 +197,17 @@ function BudgetPageContent() {
       }
       
       await fetchSubcategories()
+      
+      // Fetch transactions for the selected month (if not in default mode)
+      if (!isDefaultMode) {
+        const year = selectedMonth.getFullYear()
+        const month = selectedMonth.getMonth() + 1
+        const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+        const lastDay = new Date(year, month, 0).getDate()
+        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+        await fetchTransactions({ start_date: startDate, end_date: endDate })
+      }
+      
       setIsLoading(false)
     }
 
@@ -795,6 +808,42 @@ function BudgetPageContent() {
   const monthlyIncome = budgetSettings ? Number(budgetSettings.monthly_income) || 0 : 0
   const monthlySavingsGoal = budgetSettings ? Number(budgetSettings.monthly_savings_goal) || 0 : 0
   const availableBudget = monthlyIncome - monthlySavingsGoal
+
+  // Calculate transaction totals for the selected month
+  const transactionTotals = useMemo(() => {
+    if (isDefaultMode) {
+      return { income: 0, expenses: 0, transfers: 0 }
+    }
+
+    const year = selectedMonth.getFullYear()
+    const month = selectedMonth.getMonth() + 1
+    
+    // Filter transactions for the selected month
+    const monthTransactions = transactions.filter((t) => {
+      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+      const selectedYearMonth = `${year}-${String(month).padStart(2, '0')}`
+      return dateStr === selectedYearMonth
+    })
+
+    let totalIncome = 0
+    let totalExpenses = 0
+    let totalTransfers = 0
+
+    monthTransactions.forEach((t) => {
+      const amount = Number(t.amount) || 0
+      const transactionType = t.transaction_type || "expense" // Default to expense for backwards compatibility
+
+      if (transactionType === "income") {
+        totalIncome += Math.abs(amount)
+      } else if (transactionType === "expense") {
+        totalExpenses += Math.abs(amount)
+      } else if (transactionType === "transfer") {
+        totalTransfers += Math.abs(amount)
+      }
+    })
+
+    return { income: totalIncome, expenses: totalExpenses, transfers: totalTransfers }
+  }, [transactions, selectedMonth, isDefaultMode])
   
   // Safely calculate total budgeted - only count category-level budgets (not subcategories)
   // Subcategory budgets are nested within their parent category budgets
@@ -980,51 +1029,98 @@ function BudgetPageContent() {
 
           {/* Budget Summary Cards */}
           {budgetSettings && (
-            <div className="grid gap-4 md:grid-cols-3 mb-6">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Available Budget</p>
-                    <p className="text-2xl font-bold">{formatAmount(safeAvailableBudget)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatAmount(monthlyIncome)} income - {formatAmount(monthlySavingsGoal)} savings
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Total Budgeted</p>
-                    <p className="text-2xl font-bold">{formatAmount(safeTotalBudgeted)}</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Remaining Budget</p>
-                    <p
-                      className={`text-2xl font-bold ${
-                        isBudgetExceeded
-                          ? "text-red-600 dark:text-red-400"
-                          : safeRemainingBudget === 0
-                            ? "text-yellow-600 dark:text-yellow-400"
-                            : "text-green-600 dark:text-green-400"
-                      }`}
-                    >
-                      {formatAmount(Math.abs(safeRemainingBudget))}
-                    </p>
-                    {safeRemainingBudget === 0 && (
-                      <p className="text-xs text-yellow-600 dark:text-yellow-400">Budget fully allocated</p>
-                    )}
-                    {isBudgetExceeded && (
-                      <p className="text-xs text-red-600 dark:text-red-400">Budget exceeded</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <>
+              <div className="grid gap-4 md:grid-cols-3 mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Available Budget</p>
+                      <p className="text-2xl font-bold">{formatAmount(safeAvailableBudget)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatAmount(monthlyIncome)} income - {formatAmount(monthlySavingsGoal)} savings
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Total Budgeted</p>
+                      <p className="text-2xl font-bold">{formatAmount(safeTotalBudgeted)}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Remaining Budget</p>
+                      <p
+                        className={`text-2xl font-bold ${
+                          isBudgetExceeded
+                            ? "text-red-600 dark:text-red-400"
+                            : safeRemainingBudget === 0
+                              ? "text-yellow-600 dark:text-yellow-400"
+                              : "text-green-600 dark:text-green-400"
+                        }`}
+                      >
+                        {formatAmount(Math.abs(safeRemainingBudget))}
+                      </p>
+                      {safeRemainingBudget === 0 && (
+                        <p className="text-xs text-yellow-600 dark:text-yellow-400">Budget fully allocated</p>
+                      )}
+                      {isBudgetExceeded && (
+                        <p className="text-xs text-red-600 dark:text-red-400">Budget exceeded</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Transaction Totals - Only show for monthly budgets */}
+              {!isDefaultMode && (
+                <div className="grid gap-4 md:grid-cols-3 mb-6">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Total Income</p>
+                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {formatAmount(transactionTotals.income)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Budget: {formatAmount(monthlyIncome)}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Total Expenses</p>
+                        <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                          {formatAmount(transactionTotals.expenses)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Budgeted: {formatAmount(safeTotalBudgeted)}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Total Transfers</p>
+                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                          {formatAmount(transactionTotals.transfers)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Savings Goal: {formatAmount(monthlySavingsGoal)}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </>
           )}
 
           {!budgetSettings && (

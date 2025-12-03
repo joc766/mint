@@ -538,6 +538,8 @@ def update_transaction(
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
+    if transaction_update.transaction_type is not None:
+        transaction.transaction_type = transaction_update.transaction_type
     if transaction_update.custom_category_id is not None:
         transaction.custom_category_id = transaction_update.custom_category_id
     if transaction_update.custom_subcategory_id is not None:

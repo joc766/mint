@@ -36,12 +36,16 @@ export function CategorizeTransactionDialog({
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null)
+  const [transactionType, setTransactionType] = useState<string>("expense")
   const [notes, setNotes] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Initialize form with transaction data
   useEffect(() => {
     if (transaction) {
+      // Set transaction type
+      setTransactionType(transaction.transaction_type || "expense")
+      
       // Check if transaction has a category or subcategory
       if (transaction.custom_subcategory_id) {
         // Fetch subcategories to find the parent category
@@ -75,6 +79,7 @@ export function CategorizeTransactionDialog({
       // Reset form when no transaction
       setSelectedCategoryId(null)
       setSelectedSubcategoryId(null)
+      setTransactionType("expense")
       setNotes("")
     }
   }, [transaction])
@@ -104,29 +109,30 @@ export function CategorizeTransactionDialog({
     setIsSubmitting(true)
 
     // Determine category_id and subcategory_id based on selection
+    // Only expenses can have categories
     let custom_category_id: number | null = null
     let custom_subcategory_id: number | null = null
 
-    if (selectedSubcategoryId) {
-      // If subcategory is selected, get its parent category_id and use both
-      const subcategory = subcategories.find((s) => s.id === selectedSubcategoryId)
-      if (subcategory) {
-        custom_subcategory_id = Number.parseInt(selectedSubcategoryId)
-        custom_category_id = typeof subcategory.category_id === "string" 
-          ? Number.parseInt(subcategory.category_id, 10) 
-          : subcategory.category_id
+    if (transactionType === "expense") {
+      if (selectedSubcategoryId) {
+        // If subcategory is selected, get its parent category_id and use both
+        const subcategory = subcategories.find((s) => s.id === selectedSubcategoryId)
+        if (subcategory) {
+          custom_subcategory_id = Number.parseInt(selectedSubcategoryId)
+          custom_category_id = typeof subcategory.category_id === "string" 
+            ? Number.parseInt(subcategory.category_id, 10) 
+            : subcategory.category_id
+        }
+      } else if (selectedCategoryId) {
+        // If only category is selected (no subcategory), set category_id and null subcategory_id
+        custom_category_id = Number.parseInt(selectedCategoryId)
+        custom_subcategory_id = null
       }
-    } else if (selectedCategoryId) {
-      // If only category is selected (no subcategory), set category_id and null subcategory_id
-      custom_category_id = Number.parseInt(selectedCategoryId)
-      custom_subcategory_id = null
-    } else {
-      // No category or subcategory selected, set both to null
-      custom_category_id = null
-      custom_subcategory_id = null
     }
+    // For income and transfers, categories are always null
 
     const result = await updateTransaction(transaction.id, {
+      transaction_type: transactionType,
       custom_category_id,
       custom_subcategory_id,
       notes: notes || null,
@@ -184,9 +190,34 @@ export function CategorizeTransactionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="category">Category (Optional)</Label>
+          <div className="space-y-2">
+            <Label htmlFor="transaction_type">Transaction Type</Label>
+            <Select
+              value={transactionType}
+              onValueChange={(value) => {
+                setTransactionType(value)
+                // Clear categories if changing from expense to non-expense
+                if (value !== "expense") {
+                  setSelectedCategoryId(null)
+                  setSelectedSubcategoryId(null)
+                }
+              }}
+            >
+              <SelectTrigger id="transaction_type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="expense">Expense</SelectItem>
+                <SelectItem value="income">Income</SelectItem>
+                <SelectItem value="transfer">Transfer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {transactionType === "expense" && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="category">Category (Optional)</Label>
               <Select value={selectedCategoryId || undefined} onValueChange={handleCategoryChange}>
                 <SelectTrigger id="category">
                   {selectedCategoryId ? (
@@ -281,6 +312,7 @@ export function CategorizeTransactionDialog({
               </Select>
             </div>
           </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notes (Optional)</Label>

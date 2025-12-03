@@ -142,6 +142,7 @@ export interface TransactionCreate {
 }
 
 export interface TransactionUpdate {
+  transaction_type?: string | null
   custom_category_id?: number | null
   custom_subcategory_id?: number | null
   notes?: string | null
