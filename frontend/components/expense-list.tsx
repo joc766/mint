@@ -25,7 +25,6 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponse | null>(null)
   const [filteredExpenses, setFilteredExpenses] = useState<TransactionResponse[]>([])
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null)
-  const [activeMerchantFilter, setActiveMerchantFilter] = useState<string | null>(null)
   const [activeTransactionTypeFilter, setActiveTransactionTypeFilter] = useState<string | null>(null)
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<number>>(new Set())
@@ -143,7 +142,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
 
     // Apply all active filters with AND logic
     let filtered = sortedExpenses
-    
+
     // Apply category filter
     if (activeCategoryFilter) {
       filtered = filtered.filter((expense) => {
@@ -151,12 +150,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
         return categoryName === activeCategoryFilter
       })
     }
-    
-    // Apply merchant filter
-    if (activeMerchantFilter) {
-      filtered = filtered.filter((expense) => expense.merchant_name === activeMerchantFilter)
-    }
-    
+
     // Apply transaction type filter
     if (activeTransactionTypeFilter) {
       filtered = filtered.filter((expense) => {
@@ -170,14 +164,13 @@ export function ExpenseList({ selectedMonth = new Date() }) {
       const query = searchQuery.toLowerCase().trim()
       filtered = filtered.filter((expense) => {
         const name = (expense.name || "").toLowerCase()
-        const merchant = (expense.merchant_name || "").toLowerCase()
         const notes = (expense.notes || "").toLowerCase()
-        return name.includes(query) || merchant.includes(query) || notes.includes(query)
+        return name.includes(query) || notes.includes(query)
       })
     }
 
     setFilteredExpenses(filtered)
-  }, [monthTransactions, activeCategoryFilter, activeMerchantFilter, activeTransactionTypeFilter, getCategoryName, searchQuery, sortBy, sortDirection])
+  }, [monthTransactions, activeCategoryFilter, activeTransactionTypeFilter, getCategoryName, searchQuery, sortBy, sortDirection])
 
   // Get categories from transactions for the selected month (using string-based date comparison)
   const categoriesFromTransactions = useMemo(() => {
@@ -196,20 +189,8 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     ).map((name) => ({ id: name.toLowerCase(), name }))
   }, [monthTransactions,])
 
-  const merchantsFromTransactions = useMemo(() => {
-    return Array.from(
-      new Set(
-        monthTransactions.map((t) => t.merchant_name).filter((merchant): merchant is string => !!merchant)
-      )
-    ).map((name) => ({ id: name.toLowerCase(), name }))
-  }, [monthTransactions])
-
   const handleCategoryFilterChange = (value: string) => {
     setActiveCategoryFilter(value === "__clear__" ? null : value)
-  }
-
-  const handleMerchantFilterChange = (value: string) => {
-    setActiveMerchantFilter(value === "__clear__" ? null : value)
   }
 
   const handleTransactionTypeFilterChange = (value: string) => {
@@ -439,7 +420,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search transactions by name, merchant, or notes..."
+                placeholder="Search transactions by name, or notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -447,8 +428,8 @@ export function ExpenseList({ selectedMonth = new Date() }) {
             </div>
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap gap-2 items-center">
-                <Select 
-                  value={activeCategoryFilter || "__clear__"} 
+                <Select
+                  value={activeCategoryFilter || "__clear__"}
                   onValueChange={handleCategoryFilterChange}
                 >
                   <SelectTrigger className="w-[160px] bg-transparent">
@@ -465,28 +446,9 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                     ))}
                   </SelectContent>
                 </Select>
-                
-                <Select 
-                  value={activeMerchantFilter || "__clear__"} 
-                  onValueChange={handleMerchantFilterChange}
-                >
-                  <SelectTrigger className="w-[160px] bg-transparent">
-                    <SelectValue placeholder="Merchant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__clear__">
-                      <span className="text-muted-foreground">All Merchants</span>
-                    </SelectItem>
-                    {merchantsFromTransactions.map((merchant) => (
-                      <SelectItem key={merchant.id} value={merchant.name}>
-                        {merchant.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                
-                <Select 
-                  value={activeTransactionTypeFilter || "__clear__"} 
+
+                <Select
+                  value={activeTransactionTypeFilter || "__clear__"}
                   onValueChange={handleTransactionTypeFilterChange}
                 >
                   <SelectTrigger className="w-[160px] bg-transparent">
@@ -503,14 +465,13 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                     ))}
                   </SelectContent>
                 </Select>
-                
-                {(activeCategoryFilter || activeMerchantFilter || activeTransactionTypeFilter) && (
+
+                {(activeCategoryFilter || activeTransactionTypeFilter) && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
                       setActiveCategoryFilter(null)
-                      setActiveMerchantFilter(null)
                       setActiveTransactionTypeFilter(null)
                     }}
                     className="bg-transparent"
@@ -520,7 +481,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                   </Button>
                 )}
               </div>
-              
+
               <div className="flex gap-2 flex-shrink-0">
                 <Select value={sortBy} onValueChange={(value: "date" | "amount") => setSortBy(value)}>
                   <SelectTrigger className="w-[130px] bg-transparent">
@@ -716,7 +677,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleDeleteTransaction(expense.id, expense.merchant_name || expense.name || "Transaction")
+                            handleDeleteTransaction(expense.id, expense.name || "Transaction")
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
