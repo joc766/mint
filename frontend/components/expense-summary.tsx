@@ -73,27 +73,31 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
       return transactionType === "expense"
     })
 
-    let total = expenseTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
-    setTotalSpent(total)
+    const calculatedTotalSpent = expenseTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
+    setTotalSpent(calculatedTotalSpent)
 
     const incomeTransactions = monthTransactions.filter((t) => {
       const transactionType = t.transaction_type
       return transactionType === "income"
     })
 
-    total = incomeTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
-    setTotalIncome(total)
+    const calculatedTotalIncome = incomeTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
+    setTotalIncome(calculatedTotalIncome)
 
     const transferTransactions = monthTransactions.filter((t) => {
       const transactionType = t.transaction_type
       return transactionType === "transfer"
     })
 
-    total = transferTransactions.reduce((sum, t) => sum - Number(t.amount), 0)
-    setNetTransferred(total)
+    const calculatedNetTransferred = transferTransactions.reduce((sum, t) => sum - Number(t.amount), 0)
+    setNetTransferred(calculatedNetTransferred)
 
     // Calculate percentage of budget used
-    const percent = Math.min(Math.round((total / Number(monthlyBudget)) * 100), 100)
+    // Use totalIncome if available, otherwise fall back to monthlyBudget
+    const budgetBase = calculatedTotalIncome > 0 ? calculatedTotalIncome : Number(monthlyBudget)
+    const percent = budgetBase > 0
+      ? Math.min(Math.round((calculatedTotalSpent / budgetBase) * 100), 100)
+      : 0
     setPercentUsed(percent)
 
     // Get highest expense category (properly resolve category names)
@@ -168,7 +172,7 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
     }
 
     // Calculate daily budget
-    const remainingBudget = Math.max(Number(monthlyBudget) - total, 0)
+    const remainingBudget = Math.max(Number(monthlyBudget) - calculatedTotalSpent, 0)
     setDailyBudget(daysLeft > 0 ? remainingBudget / daysLeft : 0)
   }, [transactions, selectedMonth, monthlyBudget, budgetTemplate, categories, subcategories, daysLeft])
 
@@ -203,19 +207,6 @@ export function ExpenseSummary({ selectedMonth = new Date() }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{formatAmount(totalSpent)}</div>
-          <div className="mt-2">
-            <Progress value={percentUsed} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-1">{percentUsed}% of budget used</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Net Transfers</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatAmount(netTransferred)}</div>
           <div className="mt-2">
             <Progress value={percentUsed} className="h-2" />
             <p className="text-xs text-muted-foreground mt-1">{percentUsed}% of budget used</p>
