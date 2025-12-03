@@ -214,6 +214,31 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     }
   }
 
+  const handleTransactionTypeChange = async (transactionId: number, transactionType: string | null) => {
+    let transaction_type: string | null = null
+    if (transactionType !== "__clear__") {
+      transaction_type = transactionType
+    }
+
+    const result = await updateTransaction(transactionId, {
+      transaction_type
+    })
+
+    if (result) {
+      toast({
+        title: "Success",
+        description: "Transaction updated"
+      })
+      await fetchTransactions()
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to update transaction",
+        variant: "destructive",
+      })
+    }
+  }
+
   // Handle inline category change
   const handleCategoryChange = async (transactionId: number, categoryId: string | null) => {
     let custom_category_id: number | null = null
@@ -474,6 +499,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
               {filteredExpenses.map((expense) => {
                 const isSelected = selectedTransactionIds.has(expense.id)
                 const currentCategoryId = expense.custom_category_id
+                const currentTransactionType = expense.transaction_type
                 const currentSubcategoryId = expense.custom_subcategory_id
                 const availableSubcategories = currentCategoryId
                   ? subcategoriesByCategory[currentCategoryId] || []
@@ -509,7 +535,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                       </div>
                       <div className="flex-1">
                         <div className="font-medium flex items-center">
-                          <span>{expense.merchant_name || expense.name || "Unknown Merchant"}</span>
+                          <span>{expense.name}</span>
                           {!isBulkMode && <ChevronRight className="h-4 w-4 text-muted-foreground ml-1" />}
                         </div>
                         <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
@@ -523,6 +549,32 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                         </div>
                         {!isBulkMode && (
                           <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                            <Select
+                              value={currentTransactionType ? currentTransactionType : "__clear__"}
+                              onValueChange={(value) => handleTransactionTypeChange(expense.id, value)}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-[140px]">
+                                {currentTransactionType ? (() => {
+                                  return currentTransactionType ? (
+                                    <span className="flex items-center text-foreground">
+                                      <span>{capitalize(currentTransactionType)}</span>
+                                    </span>
+                                  ) : (
+                                    <SelectValue placeholder="Type" />
+                                  )
+                                })() : (
+                                  <SelectValue placeholder="Type" />
+                                )}
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__clear__">
+                                  <span className="text-muted-foreground">None</span>
+                                </SelectItem>
+                                <SelectItem value="expense">Expense</SelectItem>
+                                <SelectItem value="income">Income</SelectItem>
+                                <SelectItem value="transfer">Transfer</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <Select
                               value={currentCategoryId ? String(currentCategoryId) : "__clear__"}
                               onValueChange={(value) => handleCategoryChange(expense.id, value)}
