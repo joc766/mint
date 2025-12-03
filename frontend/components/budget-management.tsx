@@ -114,7 +114,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
     const monthTransactions = transactions.filter((t) => {
       const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
       const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
-      return dateStr === selectedYearMonth && Number(t.amount) < 0 // Only expenses
+      return dateStr === selectedYearMonth && t.transaction_type === "expense" // Only expenses
     })
 
     // Calculate spending by category/subcategory with proper number conversion
@@ -342,12 +342,13 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
   // Calculate total budget and spending summary with proper number conversion
   const totalBudget = budgetTemplate?.total_budget ? Number(budgetTemplate.total_budget) || 0 : 0
   // Extract year-month from ISO date string to avoid timezone issues
-  const monthTransactions = transactions.filter((t) => {
+  // Filter by transaction_type === "expense" to match expense-summary.tsx
+  const monthTransactionsForSummary = transactions.filter((t) => {
     const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
     const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
-    return dateStr === selectedYearMonth && Number(t.amount) < 0 // Only expenses
+    return dateStr === selectedYearMonth && t.transaction_type === "expense" // Only expenses
   })
-  const totalSpent = monthTransactions.reduce((sum, t) => {
+  const totalSpent = monthTransactionsForSummary.reduce((sum, t) => {
     const amount = Math.abs(Number(t.amount) || 0)
     return isNaN(amount) ? sum : sum + amount
   }, 0)
@@ -396,7 +397,7 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
               <div>
                 <p className="text-sm text-muted-foreground">Remaining</p>
                 <p className={`text-2xl font-bold ${safeTotalRemaining < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                  {formatAmount(Math.abs(safeTotalRemaining))}
+                  {safeTotalRemaining < 0 ? `-${formatAmount(Math.abs(safeTotalRemaining))}` : formatAmount(safeTotalRemaining)}
                 </p>
               </div>
             </div>
@@ -422,8 +423,8 @@ export function BudgetManagement({ selectedMonth = new Date() }) {
             <div className="text-center py-8">
               <p className="text-lg font-medium mb-2">No budget set for this month</p>
               <p className="text-sm text-muted-foreground">
-                {monthTransactions.length > 0
-                  ? `You have ${monthTransactions.length} transaction${monthTransactions.length === 1 ? "" : "s"} for this month, but no budget has been created yet.`
+                {monthTransactionsForSummary.length > 0
+                  ? `You have ${monthTransactionsForSummary.length} transaction${monthTransactionsForSummary.length === 1 ? "" : "s"} for this month, but no budget has been created yet.`
                   : "No transactions found for this month. Budgets are only created for months with transactions."}
               </p>
             </div>
