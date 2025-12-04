@@ -5,6 +5,9 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MonthSelector } from "@/components/month-selector"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { ArrowUp, ArrowDown } from "lucide-react"
 import { useCurrency } from "@/contexts/currency-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useCategories } from "@/contexts/categories-context"
@@ -27,6 +30,8 @@ function CategoryPageContent() {
   const [subcategories, setSubcategories] = useState<SubcategoryResponse[]>([])
   const [categoryExpenses, setCategoryExpenses] = useState<TransactionResponse[]>([])
   const [totalSpent, setTotalSpent] = useState(0)
+  const [sortBy, setSortBy] = useState<"date" | "amount">("date")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
   // Format date string without timezone conversion
   const formatDateLocal = (dateString: string | Date) => {
@@ -235,7 +240,27 @@ function CategoryPageContent() {
       return false
     })
 
-    setCategoryExpenses(filteredExpenses)
+    // Apply sorting to filtered expenses
+    const sortedExpenses = [...filteredExpenses].sort((a, b) => {
+      let comparison = 0
+      
+      if (sortBy === "date") {
+        // Sort by date
+        const dateA = new Date(a.date).getTime()
+        const dateB = new Date(b.date).getTime()
+        comparison = dateB - dateA // Default: newest first (desc)
+      } else {
+        // Sort by actual amount value (not absolute)
+        const amountA = Number(a.amount) || 0
+        const amountB = Number(b.amount) || 0
+        comparison = amountB - amountA // Default: largest positive first, then most negative (desc)
+      }
+      
+      // Reverse if ascending
+      return sortDirection === "asc" ? -comparison : comparison
+    })
+    
+    setCategoryExpenses(sortedExpenses)
 
     // Calculate total spent
     const total = filteredExpenses.reduce((sum, expense) => sum + Math.abs(Number(expense.amount)), 0)
@@ -307,7 +332,7 @@ function CategoryPageContent() {
     setSubcategoryBudgets(subcategoryBudgetList)
     
     setIsLoading(false)
-  }, [transactions, monthKey, categoryId, budgetTemplate, subcategories, selectedMonth, category])
+  }, [transactions, monthKey, categoryId, budgetTemplate, subcategories, selectedMonth, category, sortBy, sortDirection])
 
   if (authLoading || !isAuthenticated) {
     return null
@@ -449,7 +474,33 @@ function CategoryPageContent() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Recent Expenses</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Recent Expenses</CardTitle>
+                <div className="flex gap-2">
+                  <Select value={sortBy} onValueChange={(value: "date" | "amount") => setSortBy(value)}>
+                    <SelectTrigger className="w-[130px] bg-transparent h-8">
+                      <SelectValue placeholder="Sort by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="amount">Amount</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                    className="bg-transparent px-2 h-8"
+                    title={sortDirection === "asc" ? "Ascending" : "Descending"}
+                  >
+                    {sortDirection === "asc" ? (
+                      <ArrowUp className="h-4 w-4" />
+                    ) : (
+                      <ArrowDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {categoryExpenses.length > 0 ? (

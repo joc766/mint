@@ -182,6 +182,7 @@ class TransactionCreateResponse(TransactionResponse):
     budget_month: Optional[int] = None
 
 class TransactionUpdate(BaseModel):
+    transaction_type: Optional[str] = None
     custom_category_id: Optional[int] = None
     custom_subcategory_id: Optional[int] = None
     notes: Optional[str] = None
@@ -291,3 +292,70 @@ class MonthlyBudgetSummaryResponse(BaseModel):
 
 # Forward references are resolved automatically by Pydantic when using string annotations
 # No explicit model_rebuild() needed - Pydantic handles this automatically
+
+# Mass Import Schemas
+
+class MassImportTransactionRow(BaseModel):
+    """Import Transaction Row Schema - maps to Plaid transaction structure"""
+    # Required fields
+    amount: Decimal
+    date: date
+    name: str
+    
+    # Optional Plaid fields
+    merchant_name: Optional[str] = None
+    account_name: Optional[str] = None  # Used to link/create accounts
+    account_type: Optional[str] = None  # e.g., "checking", "credit"
+    account_subtype: Optional[str] = None
+    plaid_transaction_id: Optional[str] = None
+    iso_currency_code: Optional[str] = None
+    pending: Optional[bool] = False
+    transaction_type: Optional[str] = None
+    
+    # Optional categorization fields (user can pre-categorize)
+    category_name: Optional[str] = None
+    subcategory_name: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class MassImportRequest(BaseModel):
+    """Request schema for mass import"""
+    transactions: List[MassImportTransactionRow]
+
+
+class MassImportTransactionResult(BaseModel):
+    """Individual transaction result"""
+    row_index: int
+    success: bool
+    transaction_id: Optional[int] = None
+    error: Optional[str] = None
+    warnings: List[str] = []
+
+
+class MassImportAccountResult(BaseModel):
+    """Account creation result"""
+    account_name: str
+    account_id: int
+    created: bool  # True if newly created, False if existing
+    account_type: str
+
+
+class UnrecognizedCategorization(BaseModel):
+    """Unrecognized category/subcategory info"""
+    row_index: int
+    category_name: Optional[str] = None
+    subcategory_name: Optional[str] = None
+    reason: str  # "category_not_found", "subcategory_not_found", "subcategory_mismatch"
+
+
+class MassImportResponse(BaseModel):
+    """Full import response"""
+    total_rows: int
+    successful_imports: int
+    failed_imports: int
+    accounts_created: List[MassImportAccountResult]
+    accounts_used: List[MassImportAccountResult]
+    unrecognized_categorizations: List[UnrecognizedCategorization]
+    transaction_results: List[MassImportTransactionResult]
+    budgets_created: List[dict]  # List of {"year": int, "month": int}

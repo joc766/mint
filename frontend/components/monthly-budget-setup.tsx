@@ -234,15 +234,18 @@ export function MonthlyBudgetSetup({ onComplete, isDefault = false }: MonthlyBud
     const monthlyIncome = budgetSettings ? Number(budgetSettings.monthly_income) : 0
     const monthlySavingsGoal = budgetSettings ? Number(budgetSettings.monthly_savings_goal) : 0
     const availableBudget = monthlyIncome - monthlySavingsGoal
-    const totalBudgeted = entries.reduce((sum, entry) => {
-      const amount = typeof entry.budgeted_amount === "string" 
-        ? Number.parseFloat(entry.budgeted_amount) 
-        : entry.budgeted_amount || 0
-      return sum + amount
-    }, 0)
+    // Only count category-level budgets (subcategories are nested within categories)
+    const totalBudgeted = entries
+      .filter((entry) => entry.subcategory_id === null)
+      .reduce((sum, entry) => {
+        const amount = typeof entry.budgeted_amount === "string" 
+          ? Number.parseFloat(entry.budgeted_amount) 
+          : entry.budgeted_amount || 0
+        return sum + amount
+      }, 0)
     const remainingBudget = availableBudget - totalBudgeted
 
-    if (remainingBudget <= 0) {
+    if (remainingBudget <= 0 || isNaN(remainingBudget)) {
       setError("No budget remaining. You've allocated all available funds.")
       return
     }
@@ -257,8 +260,44 @@ export function MonthlyBudgetSetup({ onComplete, isDefault = false }: MonthlyBud
     ])
   }
 
+  // Add subcategory budget entry
+  const addSubcategoryBudgetEntry = (categoryId: number, subcategoryId: number) => {
+    // Check if entry already exists
+    const exists = entries.some(
+      (e) => e.category_id === categoryId && e.subcategory_id === subcategoryId
+    )
+    if (exists) return
+
+    setEntries([
+      ...entries,
+      {
+        category_id: categoryId,
+        subcategory_id: subcategoryId,
+        budgeted_amount: 0,
+      },
+    ])
+  }
+
+  // Add category budget entry
+  const addCategoryBudgetEntry = (categoryId: number) => {
+    setEntries([
+      ...entries,
+      {
+        category_id: categoryId,
+        subcategory_id: null,
+        budgeted_amount: 0,
+      },
+    ])
+  }
+
   const removeEntry = (index: number) => {
     setEntries(entries.filter((_, i) => i !== index))
+    // Clear any errors for this entry
+    setEntryErrors((prev) => {
+      const newErrors = { ...prev }
+      delete newErrors[index]
+      return newErrors
+    })
   }
 
   const updateEntry = (
@@ -290,57 +329,75 @@ export function MonthlyBudgetSetup({ onComplete, isDefault = false }: MonthlyBud
       // Don't clear category when subcategory is cleared - entries can have both
     } else {
       const newAmount = value as number
-      entry.budgeted_amount = newAmount // Always update the value so user can type
-      
+      entry.budgeted_amount = newAmount
+
       // Check validations
       if (budgetSettings) {
-        const monthlyIncome = Number(budgetSettings.monthly_income)
-        const monthlySavingsGoal = Number(budgetSettings.monthly_savings_goal)
+        const monthlyIncome = Number(budgetSettings.monthly_income) || 0
+        const monthlySavingsGoal = Number(budgetSettings.monthly_savings_goal) || 0
         const availableBudget = monthlyIncome - monthlySavingsGoal
-        // Calculate total budgeted including the new amount for this entry
-        const totalBudgeted = entries.reduce((sum, e, i) => {
-          const amount = i === index 
-            ? newAmount 
-            : (typeof e.budgeted_amount === "string" 
-              ? Number.parseFloat(e.budgeted_amount) 
-              : e.budgeted_amount || 0)
-          return sum + amount
+        const _totalBudgeted = entries.reduce((sum, e, i) => {
+          const amount = i === index ? newAmount : (Number(e.budgeted_amount) || 0)
+          return isNaN(amount) ? sum : sum + amount
         }, 0)
-        // Check if total exceeds available budget
-        if (totalBudgeted > availableBudget) {
+        // Calculate total budgeted - only category-level budgets (subcategories are nested)
+        const categoryLevelTotal = newEntries
+          .filter((e) => e.subcategory_id === null)
+          .reduce((sum, e) => {
+            const amount = e === entry ? newAmount : (Number(e.budgeted_amount) || 0)
+            return isNaN(amount) ? sum : sum + amount
+          }, 0)
+
+        // Check if total exceeds available budget (only for category-level entries)
+        if (entry.subcategory_id === null && !isNaN(categoryLevelTotal) && !isNaN(availableBudget) && categoryLevelTotal > availableBudget) {
           setEntryErrors((prev) => ({
             ...prev,
-            [index]: `Amount exceeds available budget`,
+            [index]: "Amount exceeds available budget",
           }))
         } else {
           // Check if subcategory total exceeds category budget
-          if (entry.subcategory_id && entry.category_id) {
-            const categoryId = entry.category_id
-            // Calculate category budget (from category-level entries)
-            const categoryBudget = newEntries
-              .filter((e) => e.category_id === categoryId && !e.subcategory_id)
-              .reduce((sum, e) => sum + (Number(e.budgeted_amount) || 0), 0)
-            
-            // Calculate subcategory total (including this entry)
-            const subcategoryTotal = newEntries
-              .filter((e) => e.category_id === categoryId && e.subcategory_id)
-              .reduce((sum, e) => {
-                const amount = e === entry ? newAmount : (Number(e.budgeted_amount) || 0)
-                return sum + amount
-              }, 0)
-            
-            if (subcategoryTotal > categoryBudget) {
-              setEntryErrors((prev) => ({
-                ...prev,
-                [index]: `Subcategory total ($${subcategoryTotal.toFixed(2)}) exceeds category budget ($${categoryBudget.toFixed(2)})`,
-              }))
-            } else {
-              // Clear error if valid
-              setEntryErrors((prev) => {
-                const newErrors = { ...prev }
-                delete newErrors[index]
-                return newErrors
+          if (entry.subcategory_id) {
+            // Use category_id from entry if available, otherwise get from subcategory
+            const categoryId = entry.category_id || (() => {
+              const subcategoryId = entry.subcategory_id
+              if (subcategoryId === null) return null
+              const sub = subcategories.find((s) => {
+                const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+                return sId === subcategoryId
               })
+              if (!sub) return null
+              return typeof sub.category_id === "string" 
+                ? Number.parseInt(sub.category_id, 10) 
+                : sub.category_id
+            })()
+            
+            if (categoryId) {
+              // Calculate category budget (from category-level entries - entries with category_id but no subcategory_id)
+              const categoryBudget = newEntries
+                .filter((e) => e.category_id === categoryId && !e.subcategory_id)
+                .reduce((sum, e) => sum + (Number(e.budgeted_amount) || 0), 0)
+              
+              // Calculate subcategory total (entries with this subcategory_id, which may also have category_id)
+              const subcategoryTotal = newEntries
+                .filter((e) => e.subcategory_id === entry.subcategory_id)
+                .reduce((sum, e) => {
+                  const amount = e === entry ? newAmount : (Number(e.budgeted_amount) || 0)
+                  return sum + amount
+                }, 0)
+            
+              if (subcategoryTotal > categoryBudget) {
+                setEntryErrors((prev) => ({
+                  ...prev,
+                  [index]: `Subcategory total ($${subcategoryTotal.toFixed(2)}) exceeds category budget ($${categoryBudget.toFixed(2)})`,
+                }))
+              } else {
+                // Clear error if valid
+                setEntryErrors((prev) => {
+                  const newErrors = { ...prev }
+                  delete newErrors[index]
+                  return newErrors
+                })
+              }
             }
           } else {
             // Clear error if not a subcategory entry
@@ -689,10 +746,18 @@ export function MonthlyBudgetSetup({ onComplete, isDefault = false }: MonthlyBud
     }
   }
 
+  // Safely calculate total budgeted - only count category-level budgets (not subcategories)
+  // Subcategory budgets are nested within their parent category budgets
   const totalBudget = entries.reduce((sum, entry) => {
+    // Only count entries that are category-level (have category_id but no subcategory_id)
+    // Subcategory entries are already accounted for within their parent category
+    if (entry.subcategory_id !== null) {
+      return sum // Skip subcategory entries - they're part of their parent category
+    }
     const amount = typeof entry.budgeted_amount === "string" 
       ? Number.parseFloat(entry.budgeted_amount) 
       : entry.budgeted_amount || 0
+    if (isNaN(amount)) return sum
     return sum + amount
   }, 0)
   const monthlyIncome = budgetSettings ? Number(budgetSettings.monthly_income) : 0
@@ -701,18 +766,102 @@ export function MonthlyBudgetSetup({ onComplete, isDefault = false }: MonthlyBud
   const remainingBudget = availableBudget - totalBudget
   const isBudgetExceeded = remainingBudget < 0
 
-  // Helper to get category name by ID
-  const _getCategoryName = (categoryId: number | null) => {
-    if (categoryId === null) return ""
-    const category = categories.find((cat) => String(cat.id) === String(categoryId))
-    return category ? `${category.icon ? category.icon + " " : ""}${category.name}` : ""
+  // Filter subcategories based on selected category (for each entry)
+  const getSubcategoriesForCategory = (categoryId: number | null) => {
+    if (!categoryId) return subcategories // Show all if no category selected
+    return subcategories.filter((sub) => String(sub.category_id) === String(categoryId))
   }
 
-  // Helper to get subcategory name by ID
-  const _getSubcategoryName = (subcategoryId: number | null) => {
-    if (subcategoryId === null) return ""
-    const subcategory = subcategories.find((sub) => String(sub.id) === String(subcategoryId))
-    return subcategory ? `${subcategory.icon ? subcategory.icon + " " : ""}${subcategory.name}` : ""
+  // Organize entries hierarchically: group by category, with subcategories nested
+  const organizedEntries = useMemo(() => {
+    const categoryMap = new Map<number, {
+      category: CategoryResponse
+      categoryEntries: Array<{
+        entry: BudgetTemplateEntryUpdate
+        entryIndex: number
+      }>
+      subcategories: Array<{
+        entry: BudgetTemplateEntryUpdate
+        entryIndex: number
+        subcategory: SubcategoryResponse
+      }>
+    }>()
+
+    // First, find all category-level entries (entries with category_id but no subcategory_id)
+    entries.forEach((entry, index) => {
+      if (entry.category_id && !entry.subcategory_id) {
+        const entryCategoryId = typeof entry.category_id === "string" 
+          ? Number.parseInt(entry.category_id, 10) 
+          : entry.category_id
+        const category = categories.find((c) => c.id === entryCategoryId)
+        if (category) {
+          const categoryId = category.id
+          if (!categoryMap.has(categoryId)) {
+            categoryMap.set(categoryId, {
+              category,
+              categoryEntries: [],
+              subcategories: [],
+            })
+          }
+          categoryMap.get(categoryId)!.categoryEntries.push({
+            entry,
+            entryIndex: index,
+          })
+        }
+      }
+    })
+
+    // Then, add subcategory entries under their parent categories
+    // Subcategory entries can have both category_id and subcategory_id
+    entries.forEach((entry, index) => {
+      if (entry.subcategory_id) {
+        const subcategoryId = entry.subcategory_id
+        const subcategory = subcategories.find((s) => {
+          const sId = typeof s.id === "string" ? Number.parseInt(s.id, 10) : s.id
+          return sId === subcategoryId
+        })
+        if (subcategory) {
+          // Use the category_id from the entry if available, otherwise use the subcategory's parent
+          const categoryId = entry.category_id 
+            ? (typeof entry.category_id === "string" ? Number.parseInt(entry.category_id, 10) : entry.category_id)
+            : (typeof subcategory.category_id === "string" ? Number.parseInt(subcategory.category_id, 10) : subcategory.category_id)
+          const category = categories.find((c) => c.id === categoryId)
+          if (category) {
+            if (!categoryMap.has(categoryId)) {
+              categoryMap.set(categoryId, {
+                category,
+                categoryEntries: [],
+                subcategories: [],
+              })
+            }
+            categoryMap.get(categoryId)!.subcategories.push({
+              entry,
+              entryIndex: index,
+              subcategory,
+            })
+          }
+        }
+      }
+    })
+
+    return Array.from(categoryMap.values())
+  }, [entries, categories, subcategories])
+
+  // Calculate remaining budget per category
+  const getCategoryRemainingBudget = (categoryId: number) => {
+    const categoryTotal = organizedEntries.find((org) => org.category.id === categoryId)
+    if (!categoryTotal) return 0
+    
+    const categoryBudget = categoryTotal.categoryEntries.reduce(
+      (sum, catEntry) => sum + (Number(catEntry.entry.budgeted_amount) || 0),
+      0
+    )
+    const subcategoryTotal = categoryTotal.subcategories.reduce(
+      (sum, sub) => sum + (Number(sub.entry.budgeted_amount) || 0),
+      0
+    )
+    
+    return categoryBudget - subcategoryTotal
   }
 
   return (
@@ -888,154 +1037,461 @@ export function MonthlyBudgetSetup({ onComplete, isDefault = false }: MonthlyBud
               <p>No budget entries yet. Click &quot;Add Budget Entry&quot; to get started.</p>
             </CardContent>
           </Card>
-      ) : (
-        <div className="space-y-4">
-          {entries.map((entry, index) => (
-            <Card key={index}>
-              <CardContent className="p-4">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor={`category-${index}`}>Category (optional)</Label>
-                    <Select
-                      value={entry.category_id !== null ? String(entry.category_id) : undefined}
-                      onValueChange={(value) => updateEntry(index, "category_id", value ? Number.parseInt(value, 10) : null)}
-                      disabled={entry.subcategory_id !== null}
-                    >
-                      <SelectTrigger id={`category-${index}`} className="w-full">
-                        {entry.category_id !== null ? (
-                          (() => {
-                            const selectedCategory = categories.find((cat) => String(cat.id) === String(entry.category_id))
-                            return selectedCategory ? (
-                              <span className="flex items-center text-foreground">
-                                {selectedCategory.icon && <span className="mr-2">{selectedCategory.icon}</span>}
-                                <span>{selectedCategory.name}</span>
-                              </span>
-                            ) : (
-                              <SelectValue placeholder={entry.subcategory_id !== null ? "Clear subcategory first" : "Select category"} />
-                            )
-                          })()
-                        ) : (
-                          <SelectValue placeholder={entry.subcategory_id !== null ? "Clear subcategory first" : "Select category"} />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categoriesLoading ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading...</div>
-                        ) : categories.length === 0 ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No categories available</div>
-                        ) : (
-                          categories.map((category) => (
-                            <SelectItem key={category.id} value={String(category.id)}>
-                              {category.icon && <span className="mr-2">{category.icon}</span>}
-                              {category.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {entry.category_id !== null && (
-                      <p className="text-xs text-muted-foreground">
-                        Note: Selecting a category will clear the subcategory selection
-                      </p>
-                    )}
-                  </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Hierarchical display of organized entries */}
+            {organizedEntries.length > 0 && (
+              <div className="space-y-4 mb-6">
+                {organizedEntries.map((orgEntry) => {
+                  const categoryRemaining = getCategoryRemainingBudget(orgEntry.category.id)
+                  const categoryBudget = orgEntry.categoryEntries.reduce(
+                    (sum, catEntry) => sum + (Number(catEntry.entry.budgeted_amount) || 0),
+                    0
+                  )
+                  const subcategoryTotal = orgEntry.subcategories.reduce(
+                    (sum, sub) => sum + (Number(sub.entry.budgeted_amount) || 0),
+                    0
+                  )
 
-                  <div className="space-y-2">
-                    <Label htmlFor={`subcategory-${index}`}>Subcategory (optional)</Label>
-                    <Select
-                      value={entry.subcategory_id !== null ? String(entry.subcategory_id) : undefined}
-                      onValueChange={(value) => updateEntry(index, "subcategory_id", value ? Number.parseInt(value, 10) : null)}
-                    >
-                      <SelectTrigger id={`subcategory-${index}`} className="w-full">
-                        {entry.subcategory_id !== null ? (
-                          (() => {
-                            const selectedSubcategory = subcategories.find((sub) => String(sub.id) === String(entry.subcategory_id))
-                            return selectedSubcategory ? (
-                              <span className="flex items-center text-foreground">
-                                {selectedSubcategory.icon && <span className="mr-2">{selectedSubcategory.icon}</span>}
-                                <span>{selectedSubcategory.name}</span>
-                              </span>
-                            ) : (
-                              <SelectValue placeholder="Select subcategory" />
-                            )
-                          })()
-                        ) : (
-                          <SelectValue placeholder="Select subcategory" />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {isLoadingSubcategories ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading...</div>
-                        ) : subcategories.length === 0 ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No subcategories available</div>
-                        ) : (
-                          subcategories.map((subcategory) => (
-                            <SelectItem key={subcategory.id} value={String(subcategory.id)}>
-                              {subcategory.icon && <span className="mr-2">{subcategory.icon}</span>}
-                              {subcategory.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {entry.subcategory_id !== null && (
-                      <p className="text-xs text-muted-foreground">
-                        Note: Selecting a subcategory will clear the category selection
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`amount-${index}`}>Budget Amount</Label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <span className="absolute left-3 top-2.5">$</span>
-                        <Input
-                          id={`amount-${index}`}
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={entry.budgeted_amount || ""}
-                          onChange={(e) => updateEntry(index, "budgeted_amount", Number.parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => {
-                            // Prevent scroll from changing number input values
-                            e.currentTarget.blur()
-                          }}
-                          className="pl-7"
-                        />
+                  return (
+                    <div key={orgEntry.category.id} className="border rounded-lg p-4 space-y-4">
+                      {/* Category Header */}
+                      <div className="flex items-center justify-between pb-2 border-b">
+                        <div className="flex items-center gap-2">
+                          {orgEntry.category.icon && <span className="text-xl">{orgEntry.category.icon}</span>}
+                          <span className="font-semibold text-lg">{orgEntry.category.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteCategory(orgEntry.category.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm text-muted-foreground">Category Budget</p>
+                            <p className="font-semibold">${categoryBudget.toFixed(2)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-muted-foreground">Remaining</p>
+                            <p className={`font-semibold ${categoryRemaining < 0 ? "text-red-600" : categoryRemaining === 0 ? "text-yellow-600" : "text-green-600"}`}>
+                              ${categoryRemaining.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeEntry(index)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {entryErrors[index] && (
-                      <p className="text-xs text-red-600">{entryErrors[index]}</p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
 
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting || isBudgetExceeded || remainingBudget < 0}
-            className="w-full"
-          >
-            {isSubmitting ? "Saving..." : "Save Budget"}
-          </Button>
-          {isBudgetExceeded && (
-            <p className="text-sm text-red-600 text-center">
-              Please adjust your budget entries. Total budgeted amount exceeds available budget.
-            </p>
-          )}
-        </div>
-      )}
+                      {/* Category-level budget entries */}
+                      <div className="pl-4 space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-muted-foreground">Category Budget:</p>
+                          {orgEntry.categoryEntries.length === 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => addCategoryBudgetEntry(orgEntry.category.id)}
+                            >
+                              <Plus className="mr-2 h-3 w-3" />
+                              Add Budget
+                            </Button>
+                          )}
+                        </div>
+                        {orgEntry.categoryEntries.map((catEntry) => {
+                          const entryIndex = catEntry.entryIndex
+                          return (
+                            <div key={entryIndex} className="grid gap-4 md:grid-cols-3 items-center bg-blue-50 dark:bg-blue-950/20 rounded p-3">
+                              <div className="flex items-center gap-2">
+                                {orgEntry.category.icon && <span>{orgEntry.category.icon}</span>}
+                                <span className="font-medium">{orgEntry.category.name} (Category Level)</span>
+                              </div>
+                              <div className="flex gap-2 items-center">
+                                <div className="relative flex-1">
+                                  <span className="absolute left-3 top-2.5">$</span>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={catEntry.entry.budgeted_amount !== null && catEntry.entry.budgeted_amount !== undefined && catEntry.entry.budgeted_amount !== 0 ? catEntry.entry.budgeted_amount : ""}
+                                    onChange={(e) => {
+                                      const value = e.target.value
+                                      if (value === "") {
+                                        updateEntry(entryIndex, "budgeted_amount", 0)
+                                      } else {
+                                        const numValue = Number.parseFloat(value)
+                                        if (!isNaN(numValue)) {
+                                          updateEntry(entryIndex, "budgeted_amount", numValue)
+                                        }
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      // Ensure we have a valid number when blurring
+                                      const value = e.target.value
+                                      if (value === "" || value === "0") {
+                                        updateEntry(entryIndex, "budgeted_amount", 0)
+                                      }
+                                    }}
+                                    onWheel={(e) => e.currentTarget.blur()}
+                                    className="pl-7"
+                                  />
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeEntry(entryIndex)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              {entryErrors[entryIndex] && (
+                                <p className="text-xs text-red-600 dark:text-red-400 col-span-3">{entryErrors[entryIndex]}</p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Subcategories */}
+                      <div className="pl-4 space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-muted-foreground">Subcategories:</p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setPendingSubcategoryCategoryId(orgEntry.category.id)
+                              setIsCreateSubcategoryOpen(true)
+                            }}
+                          >
+                            <Plus className="mr-2 h-3 w-3" />
+                            Add Subcategory
+                          </Button>
+                        </div>
+                        
+                        {/* Show subcategories with budget entries */}
+                        {orgEntry.subcategories.map((subEntry) => {
+                          const entryIndex = subEntry.entryIndex
+                          return (
+                            <div key={entryIndex} className="grid gap-4 md:grid-cols-3 items-center bg-gray-50 dark:bg-gray-900 rounded p-3">
+                              <div className="flex items-center gap-2">
+                                {subEntry.subcategory.icon && <span>{subEntry.subcategory.icon}</span>}
+                                <span className="font-medium">{subEntry.subcategory.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const subcategoryId = typeof subEntry.subcategory.id === "string" 
+                                      ? Number.parseInt(subEntry.subcategory.id, 10) 
+                                      : subEntry.subcategory.id
+                                    handleDeleteSubcategory(subcategoryId)
+                                  }}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <div className="flex gap-2 items-center">
+                                <div className="relative flex-1">
+                                  <span className="absolute left-3 top-2.5">$</span>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={subEntry.entry.budgeted_amount !== null && subEntry.entry.budgeted_amount !== undefined && subEntry.entry.budgeted_amount !== 0 ? subEntry.entry.budgeted_amount : ""}
+                                    onChange={(e) => {
+                                      const value = e.target.value
+                                      if (value === "") {
+                                        updateEntry(entryIndex, "budgeted_amount", 0)
+                                      } else {
+                                        const numValue = Number.parseFloat(value)
+                                        if (!isNaN(numValue)) {
+                                          updateEntry(entryIndex, "budgeted_amount", numValue)
+                                        }
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      // Ensure we have a valid number when blurring
+                                      const value = e.target.value
+                                      if (value === "" || value === "0") {
+                                        updateEntry(entryIndex, "budgeted_amount", 0)
+                                      }
+                                    }}
+                                    onWheel={(e) => e.currentTarget.blur()}
+                                    className="pl-7"
+                                  />
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeEntry(entryIndex)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              {entryErrors[entryIndex] && (
+                                <p className="text-xs text-red-600 dark:text-red-400 col-span-3">{entryErrors[entryIndex]}</p>
+                              )}
+                            </div>
+                          )
+                        })}
+
+                        {/* Show subcategories without budget entries */}
+                        {getSubcategoriesForCategory(orgEntry.category.id)
+                          .filter((sub) => 
+                            !orgEntry.subcategories.some((subEntry) => {
+                              const subEntryId = typeof subEntry.subcategory.id === "string" 
+                                ? Number.parseInt(subEntry.subcategory.id, 10) 
+                                : subEntry.subcategory.id
+                              const subId = typeof sub.id === "string" 
+                                ? Number.parseInt(sub.id, 10) 
+                                : sub.id
+                              return subEntryId === subId
+                            })
+                          )
+                          .map((subcategory) => (
+                            <div key={subcategory.id} className="grid gap-4 md:grid-cols-3 items-center bg-gray-50/50 dark:bg-gray-900/50 rounded p-3 border-2 border-dashed">
+                              <div className="flex items-center gap-2">
+                                {subcategory.icon && <span>{subcategory.icon}</span>}
+                                <span className="font-medium text-muted-foreground">{subcategory.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const subcategoryId = typeof subcategory.id === "string" 
+                                      ? Number.parseInt(subcategory.id, 10) 
+                                      : subcategory.id
+                                    handleDeleteSubcategory(subcategoryId)
+                                  }}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <div className="flex gap-2 items-center">
+                                <span className="text-sm text-muted-foreground flex-1">No budget set</span>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    const subcategoryId = typeof subcategory.id === "string" 
+                                      ? Number.parseInt(subcategory.id, 10) 
+                                      : subcategory.id
+                                    addSubcategoryBudgetEntry(orgEntry.category.id, subcategoryId)
+                                  }}
+                                >
+                                  <Plus className="mr-2 h-3 w-3" />
+                                  Add Budget
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+
+                        {categoryBudget > 0 && orgEntry.subcategories.length > 0 && (
+                          <div className="text-sm text-muted-foreground pt-2">
+                            Subcategory Total: ${subcategoryTotal.toFixed(2)} / Category Budget: ${categoryBudget.toFixed(2)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Unorganized entries (entries without category/subcategory) */}
+            {entries.filter((e) => {
+              // Show entries that don't have a category_id or subcategory_id
+              // Entries with category_id/subcategory_id are shown in organizedEntries
+              return !e.category_id && !e.subcategory_id
+            }).length > 0 && (
+              <div className="space-y-4 pt-4 border-t">
+                <p className="text-sm font-medium text-muted-foreground">Other Entries:</p>
+                {entries
+                  .map((entry, index) => {
+                    // Only show entries without category or subcategory
+                    if (entry.category_id || entry.subcategory_id) {
+                      return null
+                    }
+                    return { entry, index }
+                  })
+                  .filter((item): item is { entry: BudgetTemplateEntryUpdate; index: number } => item !== null)
+                  .map(({ entry, index }) => {
+                    const entrySubcategories = entry.category_id
+                      ? getSubcategoriesForCategory(entry.category_id)
+                      : subcategories
+
+                    return (
+                      <div key={index} className="border rounded-lg p-4 space-y-4">
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label htmlFor={`category-${index}`}>Category (optional)</Label>
+                            <Select
+                              value={entry.category_id !== null ? String(entry.category_id) : undefined}
+                              onValueChange={(value) =>
+                                updateEntry(index, "category_id", value ? Number.parseInt(value, 10) : null)
+                              }
+                              disabled={entry.subcategory_id !== null}
+                            >
+                              <SelectTrigger id={`category-${index}`} className="w-full">
+                                {entry.category_id !== null ? (
+                                  (() => {
+                                    const selectedCategory = categories.find(
+                                      (cat) => String(cat.id) === String(entry.category_id)
+                                    )
+                                    return selectedCategory ? (
+                                      <span className="flex items-center text-foreground">
+                                        {selectedCategory.icon && <span className="mr-2">{selectedCategory.icon}</span>}
+                                        <span>{selectedCategory.name}</span>
+                                      </span>
+                                    ) : (
+                                      <SelectValue placeholder="Select category" />
+                                    )
+                                  })()
+                                ) : (
+                                  <SelectValue placeholder="Select category" />
+                                )}
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categoriesLoading ? (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading...</div>
+                                ) : categories.length === 0 ? (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No categories available</div>
+                                ) : (
+                                  categories.map((category) => (
+                                    <SelectItem key={category.id} value={String(category.id)}>
+                                      {category.icon && <span className="mr-2">{category.icon}</span>}
+                                      {category.name}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor={`subcategory-${index}`}>Subcategory (optional)</Label>
+                            <Select
+                              value={entry.subcategory_id !== null ? String(entry.subcategory_id) : undefined}
+                              onValueChange={(value) =>
+                                updateEntry(index, "subcategory_id", value ? Number.parseInt(value, 10) : null)
+                              }
+                            >
+                              <SelectTrigger id={`subcategory-${index}`} className="w-full">
+                                {entry.subcategory_id !== null ? (
+                                  (() => {
+                                    const selectedSubcategory = subcategories.find(
+                                      (sub) => String(sub.id) === String(entry.subcategory_id)
+                                    )
+                                    return selectedSubcategory ? (
+                                      <span className="flex items-center text-foreground">
+                                        {selectedSubcategory.icon && <span className="mr-2">{selectedSubcategory.icon}</span>}
+                                        <span>{selectedSubcategory.name}</span>
+                                      </span>
+                                    ) : (
+                                      <SelectValue placeholder="Select subcategory" />
+                                    )
+                                  })()
+                                ) : (
+                                  <SelectValue
+                                    placeholder={
+                                      entry.category_id
+                                        ? "Select subcategory"
+                                        : "Select category first"
+                                    }
+                                  />
+                                )}
+                              </SelectTrigger>
+                              <SelectContent>
+                                {isLoadingSubcategories ? (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading...</div>
+                                ) : entrySubcategories.length === 0 ? (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                    {entry.category_id ? "No subcategories available" : "Select category first"}
+                                  </div>
+                                ) : (
+                                  entrySubcategories.map((subcategory) => (
+                                    <SelectItem key={subcategory.id} value={String(subcategory.id)}>
+                                      {subcategory.icon && <span className="mr-2">{subcategory.icon}</span>}
+                                      {subcategory.name}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor={`amount-${index}`}>Budget Amount</Label>
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <span className="absolute left-3 top-2.5">$</span>
+                                <Input
+                                  id={`amount-${index}`}
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={entry.budgeted_amount !== null && entry.budgeted_amount !== undefined && entry.budgeted_amount !== 0 ? entry.budgeted_amount : ""}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    if (value === "") {
+                                      updateEntry(index, "budgeted_amount", 0)
+                                    } else {
+                                      const numValue = Number.parseFloat(value)
+                                      if (!isNaN(numValue)) {
+                                        updateEntry(index, "budgeted_amount", numValue)
+                                      }
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    // Ensure we have a valid number when blurring
+                                    const value = e.target.value
+                                    if (value === "" || value === "0") {
+                                      updateEntry(index, "budgeted_amount", 0)
+                                    }
+                                  }}
+                                  onWheel={(e) => {
+                                    e.currentTarget.blur()
+                                  }}
+                                  className="pl-7"
+                                />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeEntry(index)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            {entryErrors[index] && (
+                              <p className="text-xs text-red-600 dark:text-red-400">{entryErrors[index]}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+            )}
+
+            <Button
+              onClick={handleSubmit}
+              disabled={isSubmitting || isBudgetExceeded || remainingBudget < 0}
+              className="w-full"
+            >
+              {isSubmitting ? "Saving..." : "Save Budget"}
+            </Button>
+            {isBudgetExceeded && (
+              <p className="text-sm text-red-600 text-center">
+                Please adjust your budget entries. Total budgeted amount exceeds available budget.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Create Category Dialog */}

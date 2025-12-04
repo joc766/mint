@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { User, Settings, LogOut } from "lucide-react"
+import { User, Settings, LogOut, FileSpreadsheet } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
 export function UserDropdown() {
@@ -38,6 +38,10 @@ export function UserDropdown() {
           <DropdownMenuItem onClick={() => router.push("/account")}>
             <User className="mr-2 h-4 w-4" />
             <span>Account Details</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/import")}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            <span>Import Transactions</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push("/settings")}>
             <Settings className="mr-2 h-4 w-4" />

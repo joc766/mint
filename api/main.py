@@ -24,10 +24,12 @@ from api.schemas import (
     TransactionUpdate, LinkTokenCreateRequest, LinkTokenCreateResponse, ExchangeTokenRequest, ExchangeTokenResponse,
     UserBudgetSettingsCreate, UserBudgetSettingsUpdate, UserBudgetSettingsResponse,
     BudgetTemplateResponse, BudgetTemplateCreate, BudgetTemplateUpdate, BudgetTemplateEntryCreate,
-    BudgetComparisonResponse, MonthlyBudgetSummaryResponse
+    BudgetComparisonResponse, MonthlyBudgetSummaryResponse,
+    MassImportRequest, MassImportResponse
 )
 from api.auth import get_current_user, create_access_token, verify_password, get_password_hash
 from api.plaid_service import PlaidService
+from api.import_service import process_mass_import
 
 # Create database tables
 from api.models import Base
@@ -536,6 +538,8 @@ def update_transaction(
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
+    if transaction_update.transaction_type is not None:
+        transaction.transaction_type = transaction_update.transaction_type
     if transaction_update.custom_category_id is not None:
         transaction.custom_category_id = transaction_update.custom_category_id
     if transaction_update.custom_subcategory_id is not None:
@@ -548,6 +552,47 @@ def update_transaction(
     db.commit()
     db.refresh(transaction)
     return transaction
+
+@app.delete("/transactions/{transaction_id}")
+def delete_transaction(
+    transaction_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a transaction"""
+    transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    db.delete(transaction)
+    db.commit()
+    return {"message": "Transaction deleted successfully"}
+
+@app.post("/transactions/mass-import", response_model=MassImportResponse)
+def mass_import_transactions(
+    import_request: MassImportRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Mass import transactions from CSV/external data.
+    
+    - Creates accounts as needed based on account_name
+    - Reports unrecognized categories/subcategories (does not fail, just warns)
+    - Auto-creates monthly budgets from default if applicable
+    - Detects and skips duplicate plaid_transaction_ids
+    
+    Request body should contain a list of transactions with:
+    - Required: amount, date, name
+    - Optional: merchant_name, account_name, account_type, account_subtype,
+                plaid_transaction_id, iso_currency_code, pending, transaction_type,
+                category_name, subcategory_name, notes, tags
+    """
+    return process_mass_import(import_request, current_user, db)
 
 # Category management endpoints
 @app.get("/categories/", response_model=List[CategoryResponse])

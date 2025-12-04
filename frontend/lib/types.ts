@@ -142,6 +142,7 @@ export interface TransactionCreate {
 }
 
 export interface TransactionUpdate {
+  transaction_type?: string | null
   custom_category_id?: number | null
   custom_subcategory_id?: number | null
   notes?: string | null
@@ -215,4 +216,60 @@ export interface UserBudgetSettingsCreate {
 export interface UserBudgetSettingsUpdate {
   monthly_income?: string | number
   monthly_savings_goal?: string | number
+}
+
+// Mass Import types
+export interface MassImportTransactionRow {
+  amount: string | number
+  date: string
+  name: string
+  merchant_name?: string | null
+  account_name?: string | null
+  account_type?: string | null
+  account_subtype?: string | null
+  plaid_transaction_id?: string | null
+  iso_currency_code?: string | null
+  pending?: boolean
+  transaction_type?: string | null
+  category_name?: string | null
+  subcategory_name?: string | null
+  notes?: string | null
+  tags?: string[] | null
+}
+
+export interface MassImportRequest {
+  transactions: MassImportTransactionRow[]
+}
+
+export interface MassImportTransactionResult {
+  row_index: number
+  success: boolean
+  transaction_id?: number | null
+  error?: string | null
+  warnings: string[]
+}
+
+export interface MassImportAccountResult {
+  account_name: string
+  account_id: number
+  created: boolean
+  account_type: string
+}
+
+export interface UnrecognizedCategorization {
+  row_index: number
+  category_name?: string | null
+  subcategory_name?: string | null
+  reason: string
+}
+
+export interface MassImportResponse {
+  total_rows: number
+  successful_imports: number
+  failed_imports: number
+  accounts_created: MassImportAccountResult[]
+  accounts_used: MassImportAccountResult[]
+  unrecognized_categorizations: UnrecognizedCategorization[]
+  transaction_results: MassImportTransactionResult[]
+  budgets_created: { year: number; month: number }[]
 }
