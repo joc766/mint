@@ -78,8 +78,9 @@ export function DashboardContent() {
       const monthTransactions = allTransactions.filter((t) => {
         // Extract year-month from ISO date string to avoid timezone issues
         const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+        console.log(dateStr)
         const monthYearStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-        return dateStr === monthYearStr && Number(t.amount) < 0
+        return dateStr === monthYearStr && Number(t.amount) < 0 && t.transaction_type === "expense"
       })
 
       const total = monthTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0)
@@ -91,13 +92,15 @@ export function DashboardContent() {
 
   // Calculate category distribution for selected month
   const categoryDistribution = useMemo(() => {
+    const now = new Date()
+    const date = new Date(now.getFullYear(), now.getMonth())
+    const monthKey = date.toLocaleString("default", { month: "short" })
     const monthTransactions = allTransactions.filter((t) => {
-      const tDate = new Date(t.date)
-      return (
-        tDate.getMonth() === selectedMonth.getMonth() &&
-        tDate.getFullYear() === selectedMonth.getFullYear() &&
-        Number(t.amount) < 0
-      )
+      // Extract year-month from ISO date string to avoid timezone issues
+      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
+      console.log(dateStr)
+      const monthYearStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      return dateStr === monthYearStr && Number(t.amount) < 0 && t.transaction_type === "expense"
     })
 
     const categorySpending: Record<string, number> = {}
@@ -112,8 +115,8 @@ export function DashboardContent() {
         })
         if (subcategory) {
           const parentCategory = categories.find((c) => {
-            const categoryId = typeof subcategory.category_id === "string" 
-              ? Number.parseInt(subcategory.category_id, 10) 
+            const categoryId = typeof subcategory.category_id === "string"
+              ? Number.parseInt(subcategory.category_id, 10)
               : subcategory.category_id
             return c.id === categoryId
           })
@@ -158,14 +161,14 @@ export function DashboardContent() {
       // Extract year-month from ISO date string to avoid timezone issues
       const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
       const currentYearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
-      return dateStr === currentYearMonth && Number(t.amount) < 0
+      return dateStr === currentYearMonth && Number(t.amount) < 0 && t.transaction_type === "expense"
     })
 
     const previousTransactions = allTransactions.filter((t) => {
       // Extract year-month from ISO date string to avoid timezone issues
       const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
       const prevYearMonth = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`
-      return dateStr === prevYearMonth && Number(t.amount) < 0
+      return dateStr === prevYearMonth && Number(t.amount) < 0 && t.transaction_type === "expense"
     })
 
     const currentTotal = currentTransactions.reduce(
@@ -380,9 +383,8 @@ export function DashboardContent() {
                     </div>
                     <div className="text-center">
                       <div
-                        className={`text-lg font-semibold ${
-                          periodComparison.change >= 0 ? "text-red-500" : "text-emerald-500"
-                        }`}
+                        className={`text-lg font-semibold ${periodComparison.change >= 0 ? "text-red-500" : "text-emerald-500"
+                          }`}
                       >
                         {periodComparison.change >= 0 ? "+" : ""}
                         {periodComparison.change}%
