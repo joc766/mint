@@ -78,7 +78,6 @@ export function DashboardContent() {
       const monthTransactions = allTransactions.filter((t) => {
         // Extract year-month from ISO date string to avoid timezone issues
         const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
-        console.log(dateStr)
         const monthYearStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
         return dateStr === monthYearStr && Number(t.amount) < 0 && t.transaction_type === "expense"
       })
@@ -98,7 +97,6 @@ export function DashboardContent() {
     const monthTransactions = allTransactions.filter((t) => {
       // Extract year-month from ISO date string to avoid timezone issues
       const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
-      console.log(dateStr)
       const monthYearStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
       return dateStr === monthYearStr && Number(t.amount) < 0 && t.transaction_type === "expense"
     })
@@ -186,65 +184,6 @@ export function DashboardContent() {
       current: currentTotal,
       previous: previousTotal,
       change: Math.round(change * 10) / 10,
-    }
-  }, [allTransactions, selectedMonth])
-
-  // Calculate expense insights
-  const expenseInsights = useMemo(() => {
-    const monthTransactions = allTransactions.filter((t) => {
-      // Extract year-month from ISO date string to avoid timezone issues
-      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
-      const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
-      return dateStr === selectedYearMonth && Number(t.amount) < 0
-    })
-
-    // Top spending day
-    const daySpending: Record<string, number> = {}
-    monthTransactions.forEach((t) => {
-      const dayName = new Date(t.date).toLocaleDateString("default", { weekday: "long" })
-      daySpending[dayName] = (daySpending[dayName] || 0) + Math.abs(Number(t.amount) || 0)
-    })
-
-    const topDay = Object.entries(daySpending).sort((a, b) => b[1] - a[1])[0]
-    const totalWeekSpending = Object.values(daySpending).reduce((sum, amt) => sum + amt, 0)
-    const topDayPercentage =
-      totalWeekSpending > 0 ? Math.round(((topDay?.[1] || 0) / totalWeekSpending) * 100) : 0
-
-    // Average daily spend
-    const daysInMonth = new Date(
-      selectedMonth.getFullYear(),
-      selectedMonth.getMonth() + 1,
-      0
-    ).getDate()
-    const totalSpent = monthTransactions.reduce(
-      (sum, t) => sum + Math.abs(Number(t.amount) || 0),
-      0
-    )
-    const avgDaily = daysInMonth > 0 ? totalSpent / daysInMonth : 0
-
-    // Calculate previous month average for comparison
-    const prevMonth = selectedMonth.getMonth() === 0 ? 11 : selectedMonth.getMonth() - 1
-    const prevYear =
-      selectedMonth.getMonth() === 0 ? selectedMonth.getFullYear() - 1 : selectedMonth.getFullYear()
-    const prevMonthTransactions = allTransactions.filter((t) => {
-      // Extract year-month from ISO date string to avoid timezone issues
-      const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
-      const prevYearMonth = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`
-      return dateStr === prevYearMonth && Number(t.amount) < 0
-    })
-    const prevDaysInMonth = new Date(prevYear, prevMonth + 1, 0).getDate()
-    const prevTotalSpent = prevMonthTransactions.reduce(
-      (sum, t) => sum + Math.abs(Number(t.amount) || 0),
-      0
-    )
-    const prevAvgDaily = prevDaysInMonth > 0 ? prevTotalSpent / prevDaysInMonth : 0
-    const avgDailyChange = prevAvgDaily > 0 ? ((avgDaily - prevAvgDaily) / prevAvgDaily) * 100 : 0
-
-    return {
-      topSpendingDay: topDay?.[0] || "N/A",
-      topDayPercentage,
-      avgDailySpend: avgDaily,
-      avgDailyChange: Math.round(avgDailyChange * 10) / 10,
     }
   }, [allTransactions, selectedMonth])
 
@@ -396,35 +335,6 @@ export function DashboardContent() {
               </CardContent>
             </Card>
 
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle>Expense Insights</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-lg border p-4">
-                    <h3 className="text-sm font-medium mb-2">Top Spending Day</h3>
-                    <div className="text-2xl font-bold">{expenseInsights.topSpendingDay}</div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {expenseInsights.topDayPercentage > 0
-                        ? `${expenseInsights.topDayPercentage}% of weekly expenses`
-                        : "No data available"}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border p-4">
-                    <h3 className="text-sm font-medium mb-2">Average Daily Spend</h3>
-                    <div className="text-2xl font-bold">
-                      {formatAmount(expenseInsights.avgDailySpend)}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {expenseInsights.avgDailyChange !== 0
-                        ? `${expenseInsights.avgDailyChange >= 0 ? "+" : ""}${expenseInsights.avgDailyChange}% from last month`
-                        : "No comparison available"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </TabsContent>
       </Tabs>
