@@ -336,7 +336,7 @@ export function DashboardContent() {
                           <div className="flex items-end justify-between h-[200px] px-2">
                             {monthlySpending.map((item, index) => {
                               const maxAmount = Math.max(...monthlySpending.map((m) => m.amount), 1)
-                              const height = maxAmount > 0 ? (item.amount / maxAmount) * 200 : 0
+                              const height = maxAmount > 0 ? (item.amount / maxAmount) * 180 : 0
                               return (
                                 <div key={index} className="flex flex-col items-center gap-2 flex-1">
                                   <div
