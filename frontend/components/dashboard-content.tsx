@@ -91,14 +91,11 @@ export function DashboardContent() {
 
   // Calculate category distribution for selected month
   const categoryDistribution = useMemo(() => {
-    const now = new Date()
-    const date = new Date(now.getFullYear(), now.getMonth())
-    const monthKey = date.toLocaleString("default", { month: "short" })
     const monthTransactions = allTransactions.filter((t) => {
       // Extract year-month from ISO date string to avoid timezone issues
       const dateStr = t.date.toString().substring(0, 7) // "YYYY-MM"
-      const monthYearStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      return dateStr === monthYearStr && Number(t.amount) < 0 && t.transaction_type === "expense"
+      const selectedYearMonth = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`
+      return dateStr === selectedYearMonth && Number(t.amount) < 0 && t.transaction_type === "expense"
     })
 
     const categorySpending: Record<string, number> = {}
