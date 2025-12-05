@@ -6,7 +6,6 @@ import { Search, BoxIcon as Bucket, Moon } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { SearchDialog } from "./search-dialog"
-import { NotificationsDropdown } from "./notifications-dropdown"
 import { UserDropdown } from "./user-dropdown"
 import { useTheme } from "@/contexts/theme-context"
 
@@ -46,7 +45,6 @@ export function DashboardHeader() {
               <Moon className={`h-4 w-4 ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`} />
               <Switch checked={theme === "dark"} onCheckedChange={handleDarkModeToggle} />
             </div>
-            <NotificationsDropdown />
             <UserDropdown />
           </div>
         </div>
