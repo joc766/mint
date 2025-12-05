@@ -4,10 +4,8 @@ import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { useTheme } from "@/contexts/theme-context"
 import { useCurrency } from "@/contexts/currency-context"
 import { currencies } from "@/contexts/currency-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -17,7 +15,6 @@ import { ArrowLeft, FileSpreadsheet } from "lucide-react"
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { theme, setTheme } = useTheme()
   const { currency, setCurrency, position, setPosition } = useCurrency()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const { budgetSettings, updateBudgetSettings, fetchMonthlyBudget, updateMonthlyBudget } = useBudget()
@@ -42,10 +39,6 @@ export default function SettingsPage() {
 
   if (authLoading || !isAuthenticated) {
     return null
-  }
-
-  const handleDarkModeToggle = () => {
-    setTheme(theme === "dark" ? "light" : "dark")
   }
 
   const handleSaveBudgetSettings = async () => {
@@ -292,15 +285,6 @@ export default function SettingsPage() {
                 <CardDescription>Customize your display preferences.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="dark-mode" className="font-medium">
-                      Dark Mode
-                    </Label>
-                    <p className="text-sm text-muted-foreground">Switch between light and dark mode</p>
-                  </div>
-                  <Switch id="dark-mode" checked={theme === "dark"} onCheckedChange={handleDarkModeToggle} />
-                </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label htmlFor="currency-select" className="font-medium">

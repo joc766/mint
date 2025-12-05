@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Search, BoxIcon as Bucket } from "lucide-react"
+import { Search, BoxIcon as Bucket, Moon } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { SearchDialog } from "./search-dialog"
 import { NotificationsDropdown } from "./notifications-dropdown"
 import { UserDropdown } from "./user-dropdown"
@@ -11,7 +12,11 @@ import { useTheme } from "@/contexts/theme-context"
 
 export function DashboardHeader() {
   const [searchOpen, setSearchOpen] = useState(false)
-  const { theme } = useTheme()
+  const { theme, setTheme } = useTheme()
+
+  const handleDarkModeToggle = () => {
+    setTheme(theme === "dark" ? "light" : "dark")
+  }
 
   return (
     <>
@@ -36,6 +41,10 @@ export function DashboardHeader() {
                 readOnly
                 onClick={() => setSearchOpen(true)}
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <Moon className={`h-4 w-4 ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`} />
+              <Switch checked={theme === "dark"} onCheckedChange={handleDarkModeToggle} />
             </div>
             <NotificationsDropdown />
             <UserDropdown />
