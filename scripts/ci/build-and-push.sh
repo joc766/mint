@@ -6,7 +6,7 @@ source .env
 # Configuration
 DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME:-<your-username>}"
 VERSION="${VERSION:-latest}"
-NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
+NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-api.archane-technologies.net}"
 
 echo "Building and pushing Docker images..."
 echo "Username: $DOCKERHUB_USERNAME"
