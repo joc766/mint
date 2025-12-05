@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -178,8 +179,8 @@ export default function SettingsPage() {
                     Available budget: ${((Number.parseFloat(monthlyIncome) || 0) - (Number.parseFloat(monthlySavingsGoal) || 0)).toFixed(2)}
                   </p>
                 </div>
-                <Button 
-                  onClick={handleSaveBudgetSettings} 
+                <Button
+                  onClick={handleSaveBudgetSettings}
                   disabled={isSavingBudget}
                   className="bg-emerald-500 hover:bg-emerald-600"
                 >
