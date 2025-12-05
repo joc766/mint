@@ -66,14 +66,14 @@ export function DashboardContent() {
     setAllTransactions(transactions)
   }, [transactions])
 
-  // Calculate monthly spending for last 6 months
+  // Calculate monthly spending for 6 months ending at selected month
   const monthlySpending = useMemo(() => {
-    const now = new Date()
-    const months: { month: string; amount: number; date: Date }[] = []
+    const months: { month: string; year: number; amount: number; date: Date }[] = []
 
     for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const date = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1)
       const monthKey = date.toLocaleString("default", { month: "short" })
+      const year = date.getFullYear()
 
       const monthTransactions = allTransactions.filter((t) => {
         // Extract year-month from ISO date string to avoid timezone issues
@@ -83,11 +83,11 @@ export function DashboardContent() {
       })
 
       const total = monthTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0)
-      months.push({ month: monthKey, amount: total, date })
+      months.push({ month: monthKey, year, amount: total, date })
     }
 
     return months
-  }, [allTransactions])
+  }, [allTransactions, selectedMonth])
 
   // Calculate category distribution for selected month
   const categoryDistribution = useMemo(() => {
@@ -266,23 +266,32 @@ export function DashboardContent() {
                         </div>
                       ) : (
                         <>
-                          <div className="text-center text-muted-foreground">
+                          <div className="text-center text-muted-foreground mb-2">
                             Monthly spending over time
                           </div>
-                          <div className="flex items-end justify-between h-[200px] px-2">
+                          <div className="flex items-end justify-between h-[240px] px-2">
                             {monthlySpending.map((item, index) => {
                               const maxAmount = Math.max(...monthlySpending.map((m) => m.amount), 1)
                               const height = maxAmount > 0 ? (item.amount / maxAmount) * 180 : 0
+                              // Show year only on January bars
+                              const isJanuary = item.date.getMonth() === 0
                               return (
-                                <div key={index} className="flex flex-col items-center gap-2 flex-1">
+                                <div key={index} className="flex flex-col items-center gap-2 flex-1 justify-end">
                                   <div
-                                    className="w-full bg-primary rounded-t-md min-h-[4px]"
+                                    className="w-5/6 bg-primary rounded-t-md min-h-[4px]"
                                     style={{ height: `${Math.max(height, 4)}px` }}
                                   ></div>
-                                  <span className="text-xs font-medium">{item.month}</span>
                                   <span className="text-xs text-muted-foreground">
                                     {formatAmount(item.amount)}
                                   </span>
+                                  <div className="flex flex-col items-center h-[32px] justify-end">
+                                    <span className="text-xs font-medium">{item.month}</span>
+                                  </div>
+                                  <div className="h-[2px] flex items-center">
+                                    {isJanuary && (
+                                      <span className="text-xs font-semibold text-muted-foreground">{item.year}</span>
+                                    )}
+                                  </div>
                                 </div>
                               )
                             })}

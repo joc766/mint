@@ -16,10 +16,12 @@ interface TransactionsContextType {
     end_date?: string
     category_id?: number
     subcategory_id?: number
+    replace?: boolean // If true, replace all transactions instead of merging
   }) => Promise<void>
   createTransaction: (transaction: TransactionCreate) => Promise<TransactionCreateResponse | null>
   updateTransaction: (transactionId: number, update: TransactionUpdate) => Promise<TransactionResponse | null>
   deleteTransaction: (transactionId: number) => Promise<boolean>
+  clearTransactions: () => void // Clear all cached transactions
 }
 
 const TransactionsContext = createContext<TransactionsContextType | undefined>(undefined)
@@ -36,6 +38,7 @@ export function TransactionsProvider({ children }: { children: React.ReactNode }
     end_date?: string
     category_id?: number
     subcategory_id?: number
+    replace?: boolean // If true, replace all transactions instead of merging
   }) => {
     if (!isAuthenticated) return
 
@@ -59,7 +62,27 @@ export function TransactionsProvider({ children }: { children: React.ReactNode }
         return
       }
 
-      setTransactions(data || [])
+      const newTransactions = data || []
+      
+      if (filters?.replace) {
+        // Replace all transactions (for explicit refresh scenarios)
+        setTransactions(newTransactions)
+      } else {
+        // Merge new transactions with existing ones, deduplicating by ID
+        setTransactions((prevTransactions) => {
+          const existingIds = new Set(prevTransactions.map((t) => t.id))
+          const uniqueNewTransactions = newTransactions.filter((t) => !existingIds.has(t.id))
+          
+          // Combine and sort by date (newest first)
+          const combined = [...prevTransactions, ...uniqueNewTransactions]
+          return combined.sort((a, b) => {
+            const dateA = new Date(a.date).getTime()
+            const dateB = new Date(b.date).getTime()
+            return dateB - dateA
+          })
+        })
+      }
+      
       setIsLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch transactions")
@@ -75,7 +98,22 @@ export function TransactionsProvider({ children }: { children: React.ReactNode }
       return null
     }
 
-    setTransactions([...transactions, data as TransactionResponse])
+    setTransactions((prevTransactions) => {
+      // Check if transaction already exists (shouldn't happen, but be safe)
+      const exists = prevTransactions.some((t) => t.id === (data as TransactionResponse).id)
+      if (exists) {
+        return prevTransactions.map((t) => 
+          t.id === (data as TransactionResponse).id ? (data as TransactionResponse) : t
+        )
+      }
+      // Add new transaction and sort by date (newest first)
+      const updated = [...prevTransactions, data as TransactionResponse]
+      return updated.sort((a, b) => {
+        const dateA = new Date(a.date).getTime()
+        const dateB = new Date(b.date).getTime()
+        return dateB - dateA
+      })
+    })
     return data as TransactionCreateResponse
   }
 
@@ -87,7 +125,9 @@ export function TransactionsProvider({ children }: { children: React.ReactNode }
       return null
     }
 
-    setTransactions(transactions.map((t) => (t.id === transactionId ? (data as TransactionResponse) : t)))
+    setTransactions((prevTransactions) => 
+      prevTransactions.map((t) => (t.id === transactionId ? (data as TransactionResponse) : t))
+    )
     return data as TransactionResponse
   }
 
@@ -99,17 +139,21 @@ export function TransactionsProvider({ children }: { children: React.ReactNode }
       return false
     }
 
-    setTransactions(transactions.filter((t) => t.id !== transactionId))
+    setTransactions((prevTransactions) => prevTransactions.filter((t) => t.id !== transactionId))
     return true
   }
+
+  const clearTransactions = useCallback(() => {
+    setTransactions([])
+    setError(undefined)
+  }, [])
 
   // Clear transactions when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
-      setTransactions([])
-      setError(undefined)
+      clearTransactions()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, clearTransactions])
 
   return (
     <TransactionsContext.Provider
@@ -121,6 +165,7 @@ export function TransactionsProvider({ children }: { children: React.ReactNode }
         createTransaction,
         updateTransaction,
         deleteTransaction,
+        clearTransactions,
       }}
     >
       {children}
