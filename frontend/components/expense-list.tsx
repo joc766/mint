@@ -234,13 +234,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
       transaction_type
     })
 
-    if (result) {
-      toast({
-        title: "Success",
-        description: "Transaction updated"
-      })
-      await fetchTransactions()
-    } else {
+    if (!result) {
       toast({
         title: "Error",
         description: "Failed to update transaction",
@@ -265,13 +259,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
       custom_subcategory_id,
     })
 
-    if (result) {
-      toast({
-        title: "Success",
-        description: "Transaction updated",
-      })
-      await fetchTransactions()
-    } else {
+    if (!result) {
       toast({
         title: "Error",
         description: "Failed to update transaction",
@@ -307,13 +295,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
       custom_subcategory_id,
     })
 
-    if (result) {
-      toast({
-        title: "Success",
-        description: "Transaction updated",
-      })
-      await fetchTransactions()
-    } else {
+    if (!result) {
       toast({
         title: "Error",
         description: "Failed to update transaction",
@@ -361,13 +343,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     }
 
     const success = await deleteTransaction(transactionId)
-    if (success) {
-      toast({
-        title: "Success",
-        description: "Transaction deleted successfully",
-      })
-      await fetchTransactions()
-    } else {
+    if (!success) {
       toast({
         title: "Error",
         description: "Failed to delete transaction",
