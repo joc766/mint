@@ -18,6 +18,7 @@ import { apiClient } from "@/lib/api-client"
 import { capitalize } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { BulkCategorizeDialog } from "@/components/bulk-categorize-dialog"
+import { BulkTransactionTypeDialog } from "@/components/bulk-transaction-type-dialog"
 
 export function ExpenseList({ selectedMonth = new Date() }) {
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false)
@@ -29,6 +30,7 @@ export function ExpenseList({ selectedMonth = new Date() }) {
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<number>>(new Set())
   const [isBulkCategorizeOpen, setIsBulkCategorizeOpen] = useState(false)
+  const [isBulkTransactionTypeOpen, setIsBulkTransactionTypeOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState<"date" | "amount">("date")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
@@ -341,6 +343,18 @@ export function ExpenseList({ selectedMonth = new Date() }) {
     setIsBulkCategorizeOpen(true)
   }
 
+  const handleBulkTransactionType = () => {
+    if (selectedTransactionIds.size === 0) {
+      toast({
+        title: "No Selection",
+        description: "Please select at least one transaction",
+        variant: "destructive",
+      })
+      return
+    }
+    setIsBulkTransactionTypeOpen(true)
+  }
+
   const handleDeleteTransaction = async (transactionId: number, transactionName: string) => {
     if (!confirm(`Are you sure you want to delete this transaction?\n\n${transactionName}\n\nThis action cannot be undone.`)) {
       return
@@ -392,6 +406,14 @@ export function ExpenseList({ selectedMonth = new Date() }) {
                   disabled={selectedTransactionIds.size === 0}
                 >
                   Categorize {selectedTransactionIds.size > 0 ? `(${selectedTransactionIds.size})` : ""}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkTransactionType}
+                  disabled={selectedTransactionIds.size === 0}
+                >
+                  Set Type {selectedTransactionIds.size > 0 ? `(${selectedTransactionIds.size})` : ""}
                 </Button>
                 <Button
                   variant="outline"
@@ -706,6 +728,16 @@ export function ExpenseList({ selectedMonth = new Date() }) {
       <BulkCategorizeDialog
         open={isBulkCategorizeOpen}
         onOpenChange={setIsBulkCategorizeOpen}
+        transactionIds={Array.from(selectedTransactionIds)}
+        onSuccess={() => {
+          setSelectedTransactionIds(new Set())
+          setIsBulkMode(false)
+          fetchTransactions()
+        }}
+      />
+      <BulkTransactionTypeDialog
+        open={isBulkTransactionTypeOpen}
+        onOpenChange={setIsBulkTransactionTypeOpen}
         transactionIds={Array.from(selectedTransactionIds)}
         onSuccess={() => {
           setSelectedTransactionIds(new Set())
